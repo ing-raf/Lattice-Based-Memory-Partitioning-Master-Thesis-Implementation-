@@ -1,5 +1,5 @@
 /*
- * Definition of command - line and user interface and other miscellaneous 
+ * Definitions of command - line and user interface and other miscellaneous 
  * helper functions. 
  */
 

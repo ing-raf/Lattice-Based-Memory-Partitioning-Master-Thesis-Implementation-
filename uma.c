@@ -15,6 +15,7 @@
 #include<pet.h>
 
 #include "support.h"
+#include "partitioning.h"
 
 #define DIMSTRING 100
 
@@ -41,6 +42,8 @@ int main(int argc, char ** argv) {
 	unsigned numTasks = 0;
 	// Array of polyhedral models of each task
 	pet_scop ** polyhedralModelPtr = NULL;
+	// Result of a subroutine
+	isl_stat outcome = isl_stat_ok;
 	
 	// 1a) We check if the user passed some sources to work with 
 	phasePtr = start();
@@ -133,6 +136,18 @@ int main(int argc, char ** argv) {
 	}
 	
 	complete_phase(phasePtr);
+	
+	// 2) Virtual memory allocation 
+	new_phase(phasePtr);
+	
+	outcome = virtual_allocation(optionsHdl, polyhedralModelPtr, numTasks);
+	
+	if (outcome == isl_stat_error)
+		abort_phase(phasePtr);
+	
+	complete_phase(phasePtr);
+	
+	// Be clean
 	free(tasks);
 	finish(phasePtr);
 }

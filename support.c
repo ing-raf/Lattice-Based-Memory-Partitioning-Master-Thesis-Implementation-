@@ -10,6 +10,7 @@
 
 const char * phaseNames[] = {
 	"Reading input files",
+	"Virtual address space allocation",
 };
 
 phase * start () {
