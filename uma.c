@@ -42,6 +42,8 @@ int main(int argc, char ** argv) {
 	unsigned numTasks = 0;
 	// Array of polyhedral models of each task
 	pet_scop ** polyhedralModelPtr = NULL;
+	// Array containing the access relations aftew virtual address space allocation
+	remapped_access_relations * remappedAccessRelations = NULL;
 	// Result of a subroutine
 	isl_stat outcome = isl_stat_ok;
 	
@@ -140,7 +142,12 @@ int main(int argc, char ** argv) {
 	// 2) Virtual memory allocation 
 	new_phase(phasePtr);
 	
-	outcome = virtual_allocation(optionsHdl, polyhedralModelPtr, numTasks);
+	remappedAccessRelations = malloc(numTasks * sizeof(remappedAccessRelations));
+	
+	if (remappedAccessRelations == NULL)
+		abort_phase(phasePtr);
+	
+	outcome = virtual_allocation(optionsHdl, polyhedralModelPtr, remappedAccessRelations, numTasks);
 	
 	if (outcome == isl_stat_error)
 		abort_phase(phasePtr);
@@ -148,6 +155,7 @@ int main(int argc, char ** argv) {
 	complete_phase(phasePtr);
 	
 	// Be clean
+	free(remappedAccessRelations);
 	free(tasks);
 	finish(phasePtr);
 }

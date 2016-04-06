@@ -9,6 +9,12 @@
 #include<pet.h>
 #include<isl/ctx.h>
 
-isl_stat virtual_allocation (isl_ctx*, pet_scop **, unsigned);
+typedef struct {
+	isl_union_map * remappedMayReads;
+	isl_union_map * remappedMayWrites;
+	isl_union_map * remappedMustWrites;
+} remapped_access_relations;
+
+isl_stat virtual_allocation (isl_ctx*, pet_scop **, remapped_access_relations *, unsigned);
 
 #endif /* PARTITIONING_H_ */
