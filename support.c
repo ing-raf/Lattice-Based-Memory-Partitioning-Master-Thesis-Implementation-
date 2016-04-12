@@ -12,6 +12,7 @@ const char * phaseNames[] = {
 	"Reading input files",
 	"Virtual address space allocation",
 	"Physical schedule building",
+	"Concurrent dates computation",
 };
 
 phase * start () {

@@ -15,3 +15,8 @@ const unsigned NUMPARAMS[] = {
 	3,
 	2
 };
+
+const unsigned PARAMS[2][2] = {
+	{8, 4},
+	{8, 4},
+};

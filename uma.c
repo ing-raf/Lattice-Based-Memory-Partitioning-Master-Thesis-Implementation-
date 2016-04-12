@@ -15,6 +15,7 @@
 
 #include "config.h"
 #include "support.h"
+#include "model.h"
 #include "partitioning.h"
 
 char ** validate_input(int, char**);
@@ -32,9 +33,7 @@ int main(int argc, char ** argv) {
 	// Array of the original polyhedral models of each task
 	pet_scop ** polyhedralModelPtr = NULL;
 	// Array containing the manipulated version of the polyhedral models of each task
-	manipulated_polyhedral_model * modifiedPolyhedralModel = NULL;
-	// Array containing the physical schedules
-//	isl_union_map ** physicalSchedulePtr = NULL;
+	manipulated_polyhedral_model ** modifiedPolyhedralModel = NULL;
 	// Result of a subroutine
 	isl_stat outcome = isl_stat_ok;
 	
@@ -97,7 +96,7 @@ int main(int argc, char ** argv) {
 	// 2) Virtual memory allocation 
 	new_phase(phasePtr);
 	
-	modifiedPolyhedralModel = malloc(numTasks * sizeof(manipulated_polyhedral_model));
+	modifiedPolyhedralModel = manipulated_polyhedral_model_array_alloc(numTasks);
 	
 	if (modifiedPolyhedralModel == NULL) {
 		error("Memory allocation problem :(");
@@ -116,13 +115,6 @@ int main(int argc, char ** argv) {
 	// 3) Building the physical schedule
 	new_phase(phasePtr);
 	
-//	physicalSchedulePtr = malloc(numTasks * sizeof(isl_union_map *));
-	
-//	if (physicalSchedulePtr == NULL) {
-//		error("Memory allocation problem :(");
-//		abort_phase(phasePtr);
-//	}
-	
 	outcome = physical_schedule(optionsHdl, polyhedralModelPtr, modifiedPolyhedralModel, numTasks);
 	
 	if (outcome == isl_stat_error) {
@@ -133,19 +125,26 @@ int main(int argc, char ** argv) {
 	complete_phase(phasePtr);
 	
 	// 4) Building the linearized schedule
+	new_phase(phasePtr);
 	
-	outcome = eliminate_parameters(modifiedPolyhedralModel, numTasks);
+	outcome = eliminate_parameters(polyhedralModelPtr, modifiedPolyhedralModel, numTasks);
 	
 	if (outcome == isl_stat_error) {
 		error("Error during parameter projection out");
 		abort_phase(phasePtr);
 	}
 	
-//	linearize_dates(physicalSchedulePtr, numTasks);
+	outcome = linearize_dates(modifiedPolyhedralModel, numTasks);
+	
+	if (outcome == isl_stat_error) {
+		error("Error during dates linearization");
+		abort_phase(phasePtr);
+	}
+	
+	complete_phase(phasePtr);
 	
 	// Be clean
-//	free(physicalSchedulePtr);
-	free(modifiedPolyhedralModel);
+	manipulated_polyhedral_model_array_free(modifiedPolyhedralModel, numTasks);
 	free(tasks);
 	finish(phasePtr);
 }

@@ -9,6 +9,7 @@
 
 #include "config.h"
 #include "support.h"
+#include "model.h"
 #include "partitioning.h"
 
 #define GO_ON isl_bool_true
@@ -16,7 +17,7 @@
 
 isl_bool findOutermostParallel (__isl_keep isl_schedule_node *, void *);
 
-isl_stat physical_schedule (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model * modifiedPolyhedralModel, unsigned numTasks) {
+isl_stat physical_schedule (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model ** modifiedPolyhedralModel, unsigned numTasks) {
 	// Dimensionality of the domain of the schedule of the current task
 	unsigned scheduleDim = 0;
 	// Depth of the parallel dimension of the current task
@@ -113,14 +114,15 @@ isl_stat physical_schedule (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr
 		isl_multi_aff_dump(physicalScheduleFunctionPtr);
 #endif
 		
-		modifiedPolyhedralModel[i].flattenedSchedule = isl_union_map_apply_range(schedulePtr, isl_union_map_from_map(isl_map_from_multi_aff(physicalScheduleFunctionPtr)));
+		modifiedPolyhedralModel[i] -> flattenedSchedule = isl_union_map_apply_range(schedulePtr, isl_union_map_from_map(isl_map_from_multi_aff(physicalScheduleFunctionPtr)));
 		
 #ifdef VERBOSE
 		printf("Physical schedule as a relation:\n");
 		fflush(stdout);
-		isl_union_map_dump(modifiedPolyhedralModel[i].flattenedSchedule);
+		isl_union_map_dump(modifiedPolyhedralModel[i] -> flattenedSchedule);
 #endif
 	}
+	
 	
 	return isl_stat_ok;
 }
