@@ -11,6 +11,7 @@
 const char * phaseNames[] = {
 	"Reading input files",
 	"Virtual address space allocation",
+	"Physical schedule building",
 };
 
 phase * start () {
@@ -60,15 +61,31 @@ void abort_phase (phase * phasePtr) {
 	exit(-1);	
 }
 
-void error (const char * message, phase * phasePtr) {
+void error (const char * message) {
 	
 	__SET_RED
 	printf("%s", message);
 	__SET_DEFAULT
 	printf("\n");
 	
-	free(phasePtr);
-	exit(-1);
+} 
+
+void warning (const char * message) {
+	
+	__SET_YELLOW
+	printf("%s", message);
+	__SET_DEFAULT
+	printf("\n");
+	
+} 
+
+void info (const char * message, int num) {
+	
+	__SET_BLUE
+	printf(message, num);
+	__SET_DEFAULT
+	printf("\n");
+	
 } 
 
 void finish (phase * phasePtr) {

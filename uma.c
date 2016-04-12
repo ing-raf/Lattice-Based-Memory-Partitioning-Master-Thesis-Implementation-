@@ -6,7 +6,6 @@
  * for the Uniform Memory Access time case
  */ 
 #include<stdlib.h>
-#include<string.h>
 
 #ifdef VERBOSE
 #include<stdio.h>
@@ -14,15 +13,9 @@
 
 #include<pet.h>
 
+#include "config.h"
 #include "support.h"
 #include "partitioning.h"
-
-#define DIMSTRING 100
-
-const char * sourceRelativePath = "../Tests/source-demos/";
-const char * sourceExtension = ".c";
-const char * scheduleRelativePath = "../Tests/polyhedral-extraction/outputs/"; 
-const char * scheduleExtension = ".isl.schedule";
 
 char ** validate_input(int, char**);
 
@@ -30,20 +23,18 @@ char ** validate_input(int, char**);
 int main(int argc, char ** argv) {
 	// Pointer to the current phase, used for graphical purposes
 	phase * phasePtr = NULL;
-		// Handle for the configuration of the isl and pet libraries
+	// Handle for the configuration of the isl and pet libraries
 	isl_ctx * optionsHdl = NULL;
 	// Array of task names
 	char ** tasks = NULL;
-	// File name with relative path
-	char * fileName;
-	// Handle to the file containing the modified schedule
-	FILE * filePtr;
 	// Total numbers of tasks to work with
 	unsigned numTasks = 0;
-	// Array of polyhedral models of each task
+	// Array of the original polyhedral models of each task
 	pet_scop ** polyhedralModelPtr = NULL;
-	// Array containing the access relations aftew virtual address space allocation
-	remapped_access_relations * remappedAccessRelations = NULL;
+	// Array containing the manipulated version of the polyhedral models of each task
+	manipulated_polyhedral_model * modifiedPolyhedralModel = NULL;
+	// Array containing the physical schedules
+//	isl_union_map ** physicalSchedulePtr = NULL;
 	// Result of a subroutine
 	isl_stat outcome = isl_stat_ok;
 	
@@ -51,11 +42,13 @@ int main(int argc, char ** argv) {
 	phasePtr = start();
 	
 	if (phasePtr == NULL) {
-		error("Memory allocation problem :(", phasePtr);
+		error("Memory allocation problem :(");
+		abort_phase(phasePtr);
 	}
 	
 	if (argc <= 1) {
-		error("Not enough input file(s)", phasePtr);
+		error("Not enough input file(s)");
+		abort_phase(phasePtr);
 	}
 	
 	numTasks = argc - 1;
@@ -66,8 +59,10 @@ int main(int argc, char ** argv) {
 	
 	tasks = validate_input(numTasks, argv);
 	
-	if (tasks == NULL)
+	if (tasks == NULL) {
+		printf("Too much tasks");
 		abort_phase(phasePtr);
+	}
 	
 #ifdef VERBOSE
 	printf("Task names:\n");
@@ -78,63 +73,23 @@ int main(int argc, char ** argv) {
 	// 1b) Now we parse the input sources to get the whole polyhedral model
 	optionsHdl = isl_ctx_alloc_with_pet_options();
 	
-	if (optionsHdl == NULL) 
-		error("Sorry, there is something wrong with the pet library :(", phasePtr);
+	if (optionsHdl == NULL) {
+		error("Sorry, there is something wrong with one of the libraries :(");
+		abort_phase(phasePtr);
+	}
 	
 	polyhedralModelPtr = malloc(numTasks * sizeof(pet_scop *));
 	
-	for (int i = 0; i < numTasks; i++) {
-		fileName = malloc(DIMSTRING * sizeof(char));
-		fileName[0] = '\0';
-		
-		strcat(fileName, sourceRelativePath);
-		strcat(fileName, tasks[i]);
-		strcat(fileName, sourceExtension);
-		
-#ifdef VERBOSE
-		printf("Parsing file %s\n", fileName);
-#endif
-		
-		polyhedralModelPtr[i] = pet_scop_extract_from_C_source(optionsHdl, fileName, NULL);
-		
-		if (polyhedralModelPtr[i] == NULL)
-			abort_phase(phasePtr);
-		
-#ifdef MOREVERBOSE
-		printf("Polyhedral model:\n");
-		fflush(stdout);
-		pet_scop_dump(polyhedralModelPtr[i]);
-#endif
-		
-		// We replace the parsed schedule with the one read from the modified schedule file
-		free(fileName);
-		
-		fileName = malloc(DIMSTRING * sizeof(char));
-		fileName[0] = '\0';
-		
-		strcat(fileName, scheduleRelativePath);
-		strcat(fileName, tasks[i]);
-		strcat(fileName, scheduleExtension);
-		
-#ifdef VERBOSE
-		printf("Reading file %s\n", fileName);
-#endif
-		filePtr = fopen(fileName, "r");
-		
-		if (filePtr == NULL)
-			abort_phase(phasePtr);
-		
-		polyhedralModelPtr[i] -> schedule = isl_schedule_read_from_file(optionsHdl, filePtr);
-		
-#ifdef MOREVERBOSE
-		printf("Modified polyhedral model:\n");
-		fflush(stdout);
-		pet_scop_dump(polyhedralModelPtr[i]);
-#endif
-		
-		// Be clean for the next file
-		fclose(filePtr);
-		free(fileName);
+	if (polyhedralModelPtr == NULL) {
+		error("Memory allocation problem :(");
+		return isl_stat_error;
+	}
+	
+	outcome = parse_input(optionsHdl, tasks, polyhedralModelPtr, numTasks);
+	
+	if (outcome == isl_stat_error) {
+		error("Error during parsing input files");
+		abort_phase(phasePtr);
 	}
 	
 	complete_phase(phasePtr);
@@ -142,25 +97,63 @@ int main(int argc, char ** argv) {
 	// 2) Virtual memory allocation 
 	new_phase(phasePtr);
 	
-	remappedAccessRelations = malloc(numTasks * sizeof(remappedAccessRelations));
+	modifiedPolyhedralModel = malloc(numTasks * sizeof(manipulated_polyhedral_model));
 	
-	if (remappedAccessRelations == NULL)
+	if (modifiedPolyhedralModel == NULL) {
+		error("Memory allocation problem :(");
 		abort_phase(phasePtr);
+	}
 	
-	outcome = virtual_allocation(optionsHdl, polyhedralModelPtr, remappedAccessRelations, numTasks);
+	outcome = virtual_allocation(optionsHdl, polyhedralModelPtr, modifiedPolyhedralModel, numTasks);
 	
-	if (outcome == isl_stat_error)
+	if (outcome == isl_stat_error) {
+		error("Error during virtual address space allocation");
 		abort_phase(phasePtr);
+	}
 	
 	complete_phase(phasePtr);
 	
+	// 3) Building the physical schedule
+	new_phase(phasePtr);
+	
+//	physicalSchedulePtr = malloc(numTasks * sizeof(isl_union_map *));
+	
+//	if (physicalSchedulePtr == NULL) {
+//		error("Memory allocation problem :(");
+//		abort_phase(phasePtr);
+//	}
+	
+	outcome = physical_schedule(optionsHdl, polyhedralModelPtr, modifiedPolyhedralModel, numTasks);
+	
+	if (outcome == isl_stat_error) {
+		error("Error during physical schedule building");
+		abort_phase(phasePtr);
+	}
+	
+	complete_phase(phasePtr);
+	
+	// 4) Building the linearized schedule
+	
+	outcome = eliminate_parameters(modifiedPolyhedralModel, numTasks);
+	
+	if (outcome == isl_stat_error) {
+		error("Error during parameter projection out");
+		abort_phase(phasePtr);
+	}
+	
+//	linearize_dates(physicalSchedulePtr, numTasks);
+	
 	// Be clean
-	free(remappedAccessRelations);
+//	free(physicalSchedulePtr);
+	free(modifiedPolyhedralModel);
 	free(tasks);
 	finish(phasePtr);
 }
 
 char ** validate_input(int n, char ** argv) {
+	
+	if (n > MAXTASKS) 
+		return NULL;
 	
 	char ** names = malloc(n * sizeof(char *));
 	

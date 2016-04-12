@@ -8,12 +8,13 @@
 #include<isl/set.h>
 #include<isl/constraint.h>
 
+#include "support.h"
 #include "partitioning.h"
 
 // Dimensions added by the mapping policy
 const unsigned dPolicy = 1;
 
-isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr, remapped_access_relations * remappedAccessRelations, unsigned numTasks) {
+isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model * modifiedPolyhedralModel, unsigned numTasks) {
 	
 	// Dimension of the allocation address space
 	unsigned dAllocation = 0;
@@ -38,15 +39,21 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 	
 	dTask = malloc(numTasks * sizeof(unsigned));
 	
+	if (dTask == NULL) {
+		error("Memory allocation problem :(");
+		return isl_stat_error;
+	} 
+	
 	// 1) We determine the dimension of the allocation address space
 	for (int i = 0; i < numTasks; i++) {
 		// Here we assume that each task has only one array
 		originalArrayPtr = isl_set_copy(polyhedralModelPtr[i] -> arrays[0] -> extent);
 		
 		if (originalArrayPtr == NULL) {
+			error("Cannot retrieve the original address space");
 			free(dTask);
 			return isl_stat_error;
-		}
+		} 
 		
 		dTask[i] = isl_set_dim(originalArrayPtr, isl_dim_set);
 		
@@ -75,7 +82,7 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 		dZeros = dAllocation - dTask[i] - dPolicy;
 		
 #ifdef VERBOSE
-		printf("Task %d\n", i);
+		info("Task %d)", i);
 		printf("Padding zeros: %u\n", dZeros);
 #endif
 		
@@ -173,9 +180,9 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 		isl_map_dump(allocationRelationPtr);
 #endif
 		// May - reads remapping
-		remappedAccessRelations[i].remappedMayReads = isl_union_map_apply_range (pet_scop_get_may_reads(polyhedralModelPtr[i]), isl_union_map_from_map(isl_map_copy(allocationRelationPtr)));
+		modifiedPolyhedralModel[i].remappedMayReads = isl_union_map_apply_range (pet_scop_get_may_reads(polyhedralModelPtr[i]), isl_union_map_from_map(isl_map_copy(allocationRelationPtr)));
 		
-		if (remappedAccessRelations[i].remappedMayReads == NULL)
+		if (modifiedPolyhedralModel[i].remappedMayReads == NULL)
 			return isl_stat_error;
 		
 #ifdef VERBOSE
@@ -184,12 +191,12 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 		isl_union_map_dump(pet_scop_get_may_reads(polyhedralModelPtr[i]));
 		printf("Remapped may - read access relation: ");
 		fflush(stdout);
-		isl_union_map_dump(remappedAccessRelations[i].remappedMayReads);
+		isl_union_map_dump(modifiedPolyhedralModel[i].remappedMayReads);
 #endif
 		// May - writes remapping
-		remappedAccessRelations[i].remappedMayWrites = isl_union_map_apply_range (pet_scop_get_may_writes(polyhedralModelPtr[i]), isl_union_map_from_map(isl_map_copy(allocationRelationPtr)));
+		modifiedPolyhedralModel[i].remappedMayWrites = isl_union_map_apply_range (pet_scop_get_may_writes(polyhedralModelPtr[i]), isl_union_map_from_map(isl_map_copy(allocationRelationPtr)));
 		
-		if (remappedAccessRelations[i].remappedMayWrites == NULL)
+		if (modifiedPolyhedralModel[i].remappedMayWrites == NULL)
 			return isl_stat_error;
 		
 #ifdef VERBOSE
@@ -198,12 +205,12 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 		isl_union_map_dump(pet_scop_get_may_writes(polyhedralModelPtr[i]));
 		printf("Remapped may - write access relation: ");
 		fflush(stdout);
-		isl_union_map_dump(remappedAccessRelations[i].remappedMayWrites);
+		isl_union_map_dump(modifiedPolyhedralModel[i].remappedMayWrites);
 #endif
 		// Must - writes remapping
-		remappedAccessRelations[i].remappedMustWrites = isl_union_map_apply_range (pet_scop_get_must_writes(polyhedralModelPtr[i]), isl_union_map_from_map(isl_map_copy(allocationRelationPtr)));
+		modifiedPolyhedralModel[i].remappedMustWrites = isl_union_map_apply_range (pet_scop_get_must_writes(polyhedralModelPtr[i]), isl_union_map_from_map(isl_map_copy(allocationRelationPtr)));
 		
-		if (remappedAccessRelations[i].remappedMustWrites == NULL)
+		if (modifiedPolyhedralModel[i].remappedMustWrites == NULL)
 			return isl_stat_error;
 		
 #ifdef VERBOSE
@@ -212,7 +219,7 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 		isl_union_map_dump(pet_scop_get_must_writes(polyhedralModelPtr[i]));
 		printf("Remapped must - write access relation: ");
 		fflush(stdout);
-		isl_union_map_dump(remappedAccessRelations[i].remappedMustWrites);
+		isl_union_map_dump(modifiedPolyhedralModel[i].remappedMustWrites);
 #endif
 		
 	}

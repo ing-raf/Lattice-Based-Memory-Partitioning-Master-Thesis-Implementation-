@@ -14,7 +14,9 @@ phase * start();
 void new_phase(phase *);
 void complete_phase(phase *);
 void abort_phase(phase *);
-void error(const char *, phase *);
+void error(const char *);
+void warning(const char *);
+void info(const char *, int);
 void finish(phase *);
 
 #endif /* SUPPORT_H */
