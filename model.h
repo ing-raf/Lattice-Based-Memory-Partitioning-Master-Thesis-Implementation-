@@ -13,6 +13,7 @@ typedef struct {
 	isl_union_map * remappedMayReads;
 	isl_union_map * remappedMayWrites;
 	isl_union_map * remappedMustWrites;
+	isl_union_map * linearizedSchedule;
 } manipulated_polyhedral_model; 
 
 manipulated_polyhedral_model ** manipulated_polyhedral_model_array_alloc(unsigned);

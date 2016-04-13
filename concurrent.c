@@ -29,11 +29,16 @@ isl_stat linearize_dates(manipulated_polyhedral_model ** modifiedPolyhedralModel
 	
 	for(int i = 0; i < numTasks; i++) {
 		
+#ifdef VERBOSE
+		info("Task %d)", i);
+#endif
+		
 		linearizationParams = malloc(sizeof(linearize_date_params));
 		
 		if (linearizationParams == NULL)
 			return isl_stat_error;
 		
+		linearizationParams -> partialLinearization = NULL;
 		linearizationParams -> appliedSchedule = isl_union_set_apply(modifiedPolyhedralModel[i] -> instanceSet, modifiedPolyhedralModel[i] -> flattenedSchedule);
 		
 		if (linearizationParams -> appliedSchedule == NULL)
@@ -50,6 +55,13 @@ isl_stat linearize_dates(manipulated_polyhedral_model ** modifiedPolyhedralModel
 		if (outcome == isl_stat_error)
 			return isl_stat_error;
 		
+		modifiedPolyhedralModel[i] -> linearizedSchedule = isl_union_map_coalesce(linearizationParams -> partialLinearization);
+		
+#ifdef VERBOSE
+		printf("Linearized schedule:\n");
+		fflush(stdout);
+		isl_union_map_dump(linearizationParams -> partialLinearization);
+#endif	
 		// Be clean
 		free(linearizationParams);
 	}
@@ -67,6 +79,8 @@ isl_stat linearize_date (isl_point * vector, void * user) {
 	isl_union_set * lexLtSetPtr = NULL;
 	// Parameters for the callback function
 	set_cardinality_params * cardParams = NULL;
+	// Pointer to the point representing the linearized date
+	isl_point * datePointPtr = NULL;
 	// Result of a subroutine
 	isl_stat outcome = isl_stat_ok;
 	
@@ -91,7 +105,7 @@ isl_stat linearize_date (isl_point * vector, void * user) {
 	isl_union_set_dump(params -> appliedSchedule);
 #endif
 	
-	lexLtSetPtr = isl_union_map_domain(isl_union_set_lex_lt_union_set(isl_union_set_copy(params -> appliedSchedule), singletonPtr));
+	lexLtSetPtr = isl_union_map_domain(isl_union_set_lex_lt_union_set(isl_union_set_copy(params -> appliedSchedule), isl_union_set_copy(singletonPtr)));
 	
 	if (lexLtSetPtr == NULL)
 		return isl_stat_error;
@@ -116,6 +130,29 @@ isl_stat linearize_date (isl_point * vector, void * user) {
 	
 #ifdef MOREVERBOSE
 	printf("Cardinality of the set: %d\n", cardParams -> count);
+#endif
+	
+	datePointPtr = isl_point_zero(isl_space_set_alloc(isl_union_set_get_ctx(singletonPtr), 0, 1));
+	datePointPtr = isl_point_set_coordinate_val(datePointPtr, isl_dim_set, 0, isl_val_int_from_ui(isl_union_set_get_ctx(singletonPtr), cardParams -> count));
+	
+	if (datePointPtr == NULL)
+		return isl_stat_error;
+
+#ifdef MOREVERBOSE
+	printf("Linearized date point:");
+	fflush(stdout);
+	isl_point_dump(datePointPtr);
+#endif
+	
+	if (params -> partialLinearization == NULL)
+		params -> partialLinearization = isl_union_map_from_domain_and_range(singletonPtr, isl_union_set_from_point(datePointPtr));
+	else
+		params -> partialLinearization = isl_union_map_union(params -> partialLinearization, isl_union_map_from_domain_and_range(singletonPtr, isl_union_set_from_point(datePointPtr)));
+	
+#ifdef MOREVERBOSE
+	printf("Partial linearization:");
+	fflush(stdout);
+	isl_union_map_dump(params -> partialLinearization);
 #endif	
 	
 	//Be clean
