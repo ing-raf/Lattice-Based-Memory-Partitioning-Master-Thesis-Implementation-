@@ -8,6 +8,7 @@
 #include<isl/set.h>
 #include<isl/constraint.h>
 
+#include "config.h"
 #include "support.h"
 #include "model.h"
 #include "partitioning.h"
@@ -15,7 +16,7 @@
 // Dimensions added by the mapping policy
 const unsigned dPolicy = 1;
 
-isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model ** modifiedPolyhedralModel, unsigned numTasks) {
+isl_stat virtual_allocation (FILE * stream, isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model ** modifiedPolyhedralModel, unsigned numTasks) {
 	
 	// Dimension of the allocation address space
 	unsigned dAllocation = 0;
@@ -25,6 +26,10 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 	unsigned dZeros = 0;
 	// Array of dimensions of each task
 	unsigned * dTask = NULL;
+#ifdef VERBOSE
+	// Pointer to the printer
+	isl_printer * printer = NULL;
+#endif
 	// Pointer to the array to be allocated, for the current task
 	isl_set * originalArrayPtr = NULL;
 	// Pointer to the space of the allocation address space, for the current task
@@ -41,9 +46,18 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 	dTask = malloc(numTasks * sizeof(unsigned));
 	
 	if (dTask == NULL) {
-		error("Memory allocation problem :(");
+		error(stream, "Memory allocation problem :(");
 		return isl_stat_error;
 	} 
+	
+#ifdef VERBOSE
+	printer = isl_printer_to_file(optionsHdl, stream);
+	
+	if(printer == NULL) {
+		error(stream, "Memory allocation problem :(");
+		return isl_stat_error;
+	} 
+#endif
 	
 	// 1) We determine the dimension of the allocation address space
 	for (int i = 0; i < numTasks; i++) {
@@ -51,7 +65,7 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 		originalArrayPtr = isl_set_copy(polyhedralModelPtr[i] -> arrays[0] -> extent);
 		
 		if (originalArrayPtr == NULL) {
-			error("Cannot retrieve the original address space");
+			error(stream, "Cannot retrieve the original address space");
 			free(dTask);
 			return isl_stat_error;
 		} 
@@ -59,10 +73,16 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 		dTask[i] = isl_set_dim(originalArrayPtr, isl_dim_set);
 		
 #ifdef VERBOSE
-		printf("Original array of task %d: ", i);
-		fflush(stdout);
-		isl_set_dump(originalArrayPtr);
-		printf("Dimensionality: %d\n", dTask[i]);
+		fprintf(stream, "Original array of task %d: ", i);
+		fflush(stream);
+		printer = isl_printer_print_set(printer, originalArrayPtr);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\nDimensionality: %d\n", dTask[i]);
 #endif
 	}
 		
@@ -75,16 +95,17 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 	
 	dAllocation = dMax + dPolicy;
 #ifdef VERBOSE
-	printf("Maximum dimensionality of the arrays to be allocated: %d\n", dMax);	
-	printf("Dimensionality of the allocation address space: %d\n", dAllocation);
+	fprintf(stream, "Maximum dimensionality of the arrays to be allocated: %d\n", dMax);	
+	fprintf(stream, "Dimensionality of the allocation address space: %d\n", dAllocation);
 #endif	
 		
 	for (int i = 0; i < numTasks; i++) {
 		dZeros = dAllocation - dTask[i] - dPolicy;
 		
 #ifdef VERBOSE
-		info("Task %d)", i);
-		printf("Padding zeros: %u\n", dZeros);
+		info(stream, "Task %d)", i);
+		fprintf(stream, "Padding zeros: %u\n", dZeros);
+		isl_printer_set_indent(printer, moreIndent);
 #endif
 		
 		originalArrayPtr = isl_set_copy(polyhedralModelPtr[i] -> arrays[0] -> extent);
@@ -107,9 +128,16 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 			return isl_stat_error;
 		
 #ifdef VERBOSE
-		printf("Allocated set: ");
-		fflush(stdout);
-		isl_set_dump(allocationArrayPtr);
+		fprintf(stream, "Allocated set: ");
+		fflush(stream);
+		printer = isl_printer_print_set(printer, allocationArrayPtr);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif
 		
 		allocationRelationPtr = isl_map_from_domain_and_range(isl_set_copy(originalArrayPtr), isl_set_copy(allocationArrayPtr));
@@ -118,9 +146,16 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 			return isl_stat_error;
 		
 #ifdef MOREVERBOSE
-		printf("Unconstrained relation: ");
-		fflush(stdout);
-		isl_map_dump(allocationRelationPtr);
+		fprintf(stream, "Unconstrained relation: ");
+		fflush(stream);
+		printer = isl_printer_print_map(printer, allocationRelationPtr);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif
 		
 		allocationRelationLocalSpacePtr = isl_local_space_from_space(isl_map_get_space(allocationRelationPtr));
@@ -129,9 +164,16 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 			return isl_stat_error;
 		
 #ifdef MOREVERBOSE
-		printf("Local space to constrain: ");
-		fflush(stdout);
-		isl_local_space_dump(allocationRelationLocalSpacePtr);
+		fprintf(stream, "Local space to constrain: ");
+		fflush(stream);
+		printer = isl_printer_print_local_space(printer, allocationRelationLocalSpacePtr);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif
 		
 		// Constraint on the dimension(s) used by the virtual allocation policy
@@ -146,9 +188,16 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 		allocationRelationPtr = isl_map_add_constraint(allocationRelationPtr, constraintPtr);
 		
 #ifdef MOREVERBOSE
-		printf("Constraints of the virtual allocation policy: ");
-		fflush(stdout);
-		isl_map_dump(allocationRelationPtr);
+		fprintf(stream, "Constraints of the virtual allocation policy: ");
+		fflush(stream);
+		printer = isl_printer_print_map(printer, allocationRelationPtr);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif
 		
 		// Constraints on the original dimensions
@@ -176,9 +225,16 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 		}
 		
 #ifdef VERBOSE
-		printf("Virtual address space allocation: ");
-		fflush(stdout);
-		isl_map_dump(allocationRelationPtr);
+		fprintf(stream, "Virtual address space allocation: ");
+		fflush(stream);
+		isl_printer_print_map(printer, allocationRelationPtr);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif
 		// May - reads remapping
 		modifiedPolyhedralModel[i] -> remappedMayReads = isl_union_map_apply_range (pet_scop_get_may_reads(polyhedralModelPtr[i]), isl_union_map_from_map(isl_map_copy(allocationRelationPtr)));
@@ -187,12 +243,25 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 			return isl_stat_error;
 		
 #ifdef VERBOSE
-		printf("Original may - read access relation: ");
-		fflush(stdout);
-		isl_union_map_dump(pet_scop_get_may_reads(polyhedralModelPtr[i]));
-		printf("Remapped may - read access relation: ");
-		fflush(stdout);
-		isl_union_map_dump(modifiedPolyhedralModel[i] -> remappedMayReads);
+		fprintf(stream, "Original may - read access relation: ");
+		fflush(stream);
+		printer = isl_printer_print_union_map(printer, pet_scop_get_may_reads(polyhedralModelPtr[i]));
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\nRemapped may - read access relation: ");
+		fflush(stream);
+		printer = isl_printer_print_union_map(printer, modifiedPolyhedralModel[i] -> remappedMayReads);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif
 		// May - writes remapping
 		modifiedPolyhedralModel[i] -> remappedMayWrites = isl_union_map_apply_range (pet_scop_get_may_writes(polyhedralModelPtr[i]), isl_union_map_from_map(isl_map_copy(allocationRelationPtr)));
@@ -201,12 +270,25 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 			return isl_stat_error;
 		
 #ifdef VERBOSE
-		printf("Original may - write access relation: ");
-		fflush(stdout);
-		isl_union_map_dump(pet_scop_get_may_writes(polyhedralModelPtr[i]));
-		printf("Remapped may - write access relation: ");
-		fflush(stdout);
-		isl_union_map_dump(modifiedPolyhedralModel[i] -> remappedMayWrites);
+		fprintf(stream, "Original may - write access relation: ");
+		fflush(stream);
+		printer = isl_printer_print_union_map(printer, pet_scop_get_may_writes(polyhedralModelPtr[i]));
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\nRemapped may - write access relation: ");
+		fflush(stream);
+		printer = isl_printer_print_union_map(printer, modifiedPolyhedralModel[i] -> remappedMayWrites);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif
 		// Must - writes remapping
 		modifiedPolyhedralModel[i] -> remappedMustWrites = isl_union_map_apply_range (pet_scop_get_must_writes(polyhedralModelPtr[i]), isl_union_map_from_map(isl_map_copy(allocationRelationPtr)));
@@ -215,15 +297,33 @@ isl_stat virtual_allocation (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPt
 			return isl_stat_error;
 		
 #ifdef VERBOSE
-		printf("Original must - write access relation: ");
-		fflush(stdout);
-		isl_union_map_dump(pet_scop_get_must_writes(polyhedralModelPtr[i]));
-		printf("Remapped must - write access relation: ");
-		fflush(stdout);
-		isl_union_map_dump(modifiedPolyhedralModel[i] -> remappedMustWrites);
+		fprintf(stream, "Original must - write access relation: ");
+		fflush(stream);
+		printer = isl_printer_print_union_map(printer, pet_scop_get_must_writes(polyhedralModelPtr[i]));
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\nRemapped must - write access relation: ");
+		fflush(stream);
+		printer = isl_printer_print_union_map(printer, modifiedPolyhedralModel[i] -> remappedMustWrites);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
+		isl_printer_set_indent(printer, lessIndent);
 #endif
 		
 	}
+	
+#ifdef VERBOSE
+	isl_printer_free(printer);
+#endif
 	
 	free(dTask);
 	return isl_stat_ok;

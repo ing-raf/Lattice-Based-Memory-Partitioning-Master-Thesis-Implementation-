@@ -22,79 +22,152 @@ typedef struct {
 		isl_union_set * uset;
 	} bounded;
 	unsigned taskNum;
+#ifdef MOREVERBOSE
+	isl_printer * printer;
+#endif
 } add_parameter_constraint_params;
 
+#ifndef MOREVERBOSE
 isl_union_map * eliminate_parameters_map(isl_union_map *, unsigned);
 isl_union_set * eliminate_parameters_set(isl_union_set *, unsigned);
+#else
+isl_union_map * eliminate_parameters_map(isl_printer *, isl_union_map *, unsigned);
+isl_union_set * eliminate_parameters_set(isl_printer *, isl_union_set *, unsigned);
+#endif
 isl_stat add_parameter_constraint_map (isl_map *, void *);
 isl_stat add_parameter_constraint_set (isl_set *, void *);
 
-isl_stat eliminate_parameters (pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model ** modifiedPolyhedralModel, unsigned numTasks) {
+isl_stat eliminate_parameters (FILE * stream, pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model ** modifiedPolyhedralModel, unsigned numTasks) {
+	
+#ifdef MOREVERBOSE
+	// Pointer to the printer
+	isl_printer * printer = NULL;
+#endif
 	
 	for (int i = 0; i < numTasks; i++) {
-#ifdef VERBOSE
-		info("Task %d)", i);
+#ifdef MOREVERBOSE
+		info(stream, "Task %d)", i);
+		
+		printer = isl_printer_to_file(isl_union_set_get_ctx(pet_scop_get_instance_set(polyhedralModelPtr[i])), stream);
+		
+		if(printer == NULL) {
+			error(stream, "Memory allocation problem :(");
+			return isl_stat_error;
+		} 
+		
+		isl_printer_set_indent(printer, moreIndent);
 #endif
 		
+#ifndef MOREVERBOSE
 		modifiedPolyhedralModel[i] -> instanceSet = eliminate_parameters_set(pet_scop_get_instance_set(polyhedralModelPtr[i]), i);
-
+#else
+		modifiedPolyhedralModel[i] -> instanceSet = eliminate_parameters_set(printer, pet_scop_get_instance_set(polyhedralModelPtr[i]), i);
+#endif
+		
 		if (modifiedPolyhedralModel[i] -> instanceSet == NULL)
 			return isl_stat_error;
 		
-#ifdef VERBOSE
-		printf("Constrained instance set:\n");
-		fflush(stdout);
-		isl_union_set_dump(modifiedPolyhedralModel[i] ->  instanceSet);
-#endif		
+#ifdef MOREVERBOSE
+		fprintf(stream, "Constrained instance set:\n");
+		fflush(stream);
+		printer = isl_printer_print_union_set(printer, modifiedPolyhedralModel[i] ->  instanceSet);
 		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
+#endif
+		
+#ifndef MOREVERBOSE
 		modifiedPolyhedralModel[i] -> flattenedSchedule = eliminate_parameters_map (modifiedPolyhedralModel[i] -> flattenedSchedule, i);
+#else
+		modifiedPolyhedralModel[i] -> flattenedSchedule = eliminate_parameters_map (printer, modifiedPolyhedralModel[i] -> flattenedSchedule, i);
+#endif
 		
 		if (modifiedPolyhedralModel[i] -> flattenedSchedule == NULL)
 			return isl_stat_error;
 		
-#ifdef VERBOSE
-		printf("Constrained flattened schedule:\n");
-		fflush(stdout);
-		isl_union_map_dump(modifiedPolyhedralModel[i] -> flattenedSchedule);
+#ifdef MOREVERBOSE
+		fprintf(stream, "Constrained flattened schedule:\n");
+		fflush(stream);
+		printer = isl_printer_print_union_map(printer, modifiedPolyhedralModel[i] -> flattenedSchedule);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif
 		
+#ifndef MOREVERBOSE
 		modifiedPolyhedralModel[i] -> remappedMayReads = eliminate_parameters_map (modifiedPolyhedralModel[i] -> remappedMayReads, i);
+#else
+		modifiedPolyhedralModel[i] -> remappedMayReads = eliminate_parameters_map (printer, modifiedPolyhedralModel[i] -> remappedMayReads, i);
+#endif
 		
 		if (modifiedPolyhedralModel[i] -> remappedMayReads == NULL)
 			return isl_stat_error;
 		
-#ifdef VERBOSE
-		printf("Constrained may reads:\n");
-		fflush(stdout);
-		isl_union_map_dump(modifiedPolyhedralModel[i] -> remappedMayReads);
+#ifdef MOREVERBOSE
+		fprintf(stream, "Constrained may reads:\n");
+		fflush(stream);
+		printer = isl_printer_print_union_map(printer, modifiedPolyhedralModel[i] -> remappedMayReads);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif
 		
-#ifdef VERBOSE
-		printf("May writes to constraint:\n");
-		fflush(stdout);
-		isl_union_map_dump(modifiedPolyhedralModel[i] -> remappedMayWrites);
-#endif
-		
+#ifndef MOREVERBOSE
 		modifiedPolyhedralModel[i] -> remappedMayWrites = eliminate_parameters_map (modifiedPolyhedralModel[i] -> remappedMayWrites, i);
+#else
+		modifiedPolyhedralModel[i] -> remappedMayWrites = eliminate_parameters_map (printer, modifiedPolyhedralModel[i] -> remappedMayWrites, i);
+#endif
 		
 		if (modifiedPolyhedralModel[i] -> remappedMayWrites == NULL)
 			return isl_stat_error;
 		
-#ifdef VERBOSE
-		printf("Constrained may writes:\n");
-		fflush(stdout);
-		isl_union_map_dump(modifiedPolyhedralModel[i] -> remappedMayWrites);
+#ifdef MOREVERBOSE
+		fprintf(stream, "Constrained may writes:\n");
+		fflush(stream);
+		printer = isl_printer_print_union_map(printer, modifiedPolyhedralModel[i] -> remappedMayWrites);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif
 		
+#ifndef MOREVERBOSE
 		modifiedPolyhedralModel[i] -> remappedMustWrites = eliminate_parameters_map (modifiedPolyhedralModel[i] -> remappedMustWrites, i);
+#else
+		modifiedPolyhedralModel[i] -> remappedMustWrites = eliminate_parameters_map (printer, modifiedPolyhedralModel[i] -> remappedMustWrites, i);
+#endif
 		
 		if (modifiedPolyhedralModel[i] -> remappedMustWrites == NULL)
 			return isl_stat_error;
 		
-#ifdef VERBOSE
-		printf("Constrained must writes:\n");
-		fflush(stdout);
-		isl_union_map_dump(modifiedPolyhedralModel[i] -> remappedMustWrites);
+#ifdef MOREVERBOSE
+		fprintf(stream, "Constrained must writes:\n");
+		fflush(stream);
+		printer = isl_printer_print_union_map(printer, modifiedPolyhedralModel[i] -> remappedMustWrites);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
+		
+		isl_printer_free(printer);
 #endif
 	
 	}
@@ -103,7 +176,13 @@ isl_stat eliminate_parameters (pet_scop ** polyhedralModelPtr, manipulated_polyh
 	
 }
 
+#ifndef MOREVERBOSE
 isl_union_map * eliminate_parameters_map(isl_union_map * umap, unsigned taskNum) {
+#else
+isl_union_map * eliminate_parameters_map(isl_printer * printer, isl_union_map * umap, unsigned taskNum) {
+	// Handle to the output stream
+	FILE * stream = NULL;
+#endif
 	// Return value
 	isl_union_map * returnMap = NULL;
 	// Parameters for the callback function
@@ -118,45 +197,64 @@ isl_union_map * eliminate_parameters_map(isl_union_map * umap, unsigned taskNum)
 	
 	// Initialization of the parameters
 	params -> bounded.umap = NULL;
-	params -> taskNum = taskNum;
+	params -> taskNum = taskNum;	
+#ifdef MOREVERBOSE
+	params -> printer = printer; 
+#endif
 	
 	outcome = isl_union_map_foreach_map(umap, add_parameter_constraint_map, params);
 	
 	if (outcome == isl_stat_error)
 		return NULL;
 	
-//	umap = params -> bounded;
-	
-#ifdef MOREVERBOSE
-	printf("Constrained union map:\n");
-	fflush(stdout);
-	isl_union_map_dump(params -> bounded.umap);
-#endif
-	
-	returnMap = params -> bounded.umap;
+	if (params -> bounded.umap != NULL)
+		returnMap = params -> bounded.umap;
+	else // builds an empty map in the same space of the given union map
+		returnMap = isl_union_map_empty(isl_space_alloc(isl_union_map_get_ctx(umap), 0,0,0));
+		
 	free(params);
 	
-	if (returnMap != NULL)
-		return returnMap;
-	else { // builds an empty map in the same space of the given union map
-		return isl_union_map_empty(isl_space_alloc(isl_union_map_get_ctx(umap), 0,0,0));
-	}
-
+#ifdef MOREVERBOSE
+	stream = isl_printer_get_file(printer);
+	fprintf(stream, "Constrained union map:\n");
+	fflush(stream);
+	printer = isl_printer_print_union_map(printer, returnMap);
+	
+	if(printer == NULL) {
+		error(stream, "Printing problem :(");
+		return NULL;
+	} 
+	
+	fprintf(stream, "\n");
+#endif
+	return returnMap;
 }
 
 
 isl_stat add_parameter_constraint_map (isl_map * map, void * user) {
 	// Pointer to the input parameters
 	add_parameter_constraint_params * params = (add_parameter_constraint_params *)user;
+#ifdef MOREVERBOSE
+	// Handle to the output stream
+	FILE * stream = NULL;
+#endif
 	// Pointer to the statement schedule local space
 	isl_local_space * localSpacePtr = NULL;
 	// Pointer to the constraint under building upon the parameters
 	isl_constraint * parameterConstraintPtr = NULL;
 	
 #ifdef MOREVERBOSE
-	printf("Map to bound:\n");
-	fflush(stdout);
-	isl_map_dump(map);
+	stream = isl_printer_get_file(params -> printer);
+	fprintf(stream, "Map to bound:\n");
+	fflush(stream);
+	params -> printer = isl_printer_print_map(params -> printer, map);
+	
+	if(params -> printer == NULL) {
+		error(stream, "Printing problem :(");
+		return isl_stat_error;
+	} 
+	
+	fprintf(stream, "\n");
 #endif
 	
 	localSpacePtr = isl_local_space_from_space(isl_map_get_space(map));
@@ -179,9 +277,16 @@ isl_stat add_parameter_constraint_map (isl_map * map, void * user) {
 	map = isl_map_project_out(map, isl_dim_param, 0, NUMPARAMS[params -> taskNum]);
 	
 #ifdef MOREVERBOSE
-	printf("Map bounded:\n");
-	fflush(stdout);
-	isl_map_dump(map);
+	fprintf(stream, "Map bounded:\n");
+	fflush(stream);
+	params -> printer = isl_printer_print_map(params -> printer, map);
+	
+	if(params -> printer == NULL) {
+		error(stream, "Printing problem :(");
+		return isl_stat_error;
+	} 
+	
+	fprintf(stream, "\n");
 #endif
 	
 	// To pass out the modified map
@@ -194,7 +299,13 @@ isl_stat add_parameter_constraint_map (isl_map * map, void * user) {
 	
 }
 
+#ifndef MOREVERBOSE
 isl_union_set * eliminate_parameters_set(isl_union_set * uset, unsigned taskNum) {
+#else
+isl_union_set * eliminate_parameters_set(isl_printer * printer, isl_union_set * uset, unsigned taskNum) {
+	// Handle to the output stream
+	FILE * stream = NULL;
+#endif
 	// Return value
 	isl_union_set * returnSet = NULL;
 	// Parameters for the callback function
@@ -211,15 +322,27 @@ isl_union_set * eliminate_parameters_set(isl_union_set * uset, unsigned taskNum)
 	params -> bounded.uset = NULL;
 	params -> taskNum = taskNum;
 	
+#ifdef MOREVERBOSE
+	params -> printer = printer;
+#endif
+	
 	outcome = isl_union_set_foreach_set(uset, add_parameter_constraint_set, params);
 	
 	if (outcome == isl_stat_error)
 		return NULL;
 	
 #ifdef MOREVERBOSE
-	printf("Constrained union set:\n");
-	fflush(stdout);
-	isl_union_set_dump(params -> bounded.uset);
+	stream = isl_printer_get_file(printer);
+	fprintf(stream, "Constrained union set:\n");
+	fflush(stream);
+	printer = isl_printer_print_union_set(printer, params -> bounded.uset);
+	
+	if(printer == NULL) {
+		error(stream, "Printing problem :(");
+		return NULL;
+	}
+	
+	fprintf(stream, "\n");
 #endif
 	
 	returnSet = params -> bounded.uset;
@@ -235,6 +358,10 @@ isl_union_set * eliminate_parameters_set(isl_union_set * uset, unsigned taskNum)
 
 
 isl_stat add_parameter_constraint_set (isl_set * set, void * user) {
+#ifdef MOREVERBOSE
+	// Handle to the output stream
+	FILE * stream = NULL;
+#endif
 	// Pointer to the input parameters
 	add_parameter_constraint_params * params = (add_parameter_constraint_params *)user;
 	// Pointer to the statement schedule local space
@@ -243,9 +370,17 @@ isl_stat add_parameter_constraint_set (isl_set * set, void * user) {
 	isl_constraint * parameterConstraintPtr = NULL;
 	
 #ifdef MOREVERBOSE
-	printf("Set to bound:\n");
-	fflush(stdout);
-	isl_set_dump(set);
+	stream = isl_printer_get_file(params -> printer);
+	fprintf(stream, "Set to bound:\n");
+	fflush(stream);
+	params -> printer = isl_printer_print_set(params -> printer, set);
+	
+	if(params -> printer == NULL) {
+		error(stream, "Printing problem :(");
+		return isl_stat_error;
+	} 
+	
+	fprintf(stream, "\n");
 #endif
 	
 	localSpacePtr = isl_local_space_from_space(isl_set_get_space(set));
@@ -268,9 +403,16 @@ isl_stat add_parameter_constraint_set (isl_set * set, void * user) {
 	set = isl_set_project_out(set, isl_dim_param, 0, NUMPARAMS[params -> taskNum]);
 	
 #ifdef MOREVERBOSE
-	printf("Set bounded:\n");
-	fflush(stdout);
-	isl_set_dump(set);
+	fprintf(stream, "Set bounded:\n");
+	fflush(stream);
+	params -> printer = isl_printer_print_set(params -> printer, set);
+	
+	if(params -> printer == NULL) {
+		error(stream, "Printing problem :(");
+		return isl_stat_error;
+	} 
+	
+	fprintf(stream, "\n");
 #endif
 	
 	// To pass out the modified set

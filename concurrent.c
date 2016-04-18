@@ -5,13 +5,18 @@
 #include<stdlib.h>
 
 #include<isl/union_set.h>
+//#include<barvinok/isl.h>
 
+#include "config.h"
 #include "support.h"
 #include "partitioning.h"
 
 typedef struct {
 	isl_union_set * appliedSchedule;
 	isl_union_map * partialLinearization;
+#ifdef MOREVERBOSE
+	isl_printer * printer;
+#endif
 } linearize_date_params;
 
 typedef struct {
@@ -21,7 +26,11 @@ typedef struct {
 isl_stat linearize_date(isl_point *, void *);
 isl_stat set_cardinality(isl_point *, void *);
 
-isl_stat linearize_dates(manipulated_polyhedral_model ** modifiedPolyhedralModel, unsigned numTasks) {
+isl_stat linearize_dates(FILE * stream, manipulated_polyhedral_model ** modifiedPolyhedralModel, unsigned numTasks) {
+#ifdef VERBOSE
+	// Pointer to the printer
+	isl_printer * printer = NULL;
+#endif
 	// Parameters for the callback function
 	linearize_date_params * linearizationParams = NULL;
 	// Result of a subroutine
@@ -30,7 +39,15 @@ isl_stat linearize_dates(manipulated_polyhedral_model ** modifiedPolyhedralModel
 	for(int i = 0; i < numTasks; i++) {
 		
 #ifdef VERBOSE
-		info("Task %d)", i);
+		info(stream, "Task %d)", i);
+		printer = isl_printer_to_file(isl_union_set_get_ctx(modifiedPolyhedralModel[i] -> instanceSet), stream);
+		
+		if(printer == NULL) {
+			error(stream, "Memory allocation problem :(");
+			return isl_stat_error;
+		} 
+
+		isl_printer_set_indent(printer, moreIndent);
 #endif
 		
 		linearizationParams = malloc(sizeof(linearize_date_params));
@@ -44,10 +61,21 @@ isl_stat linearize_dates(manipulated_polyhedral_model ** modifiedPolyhedralModel
 		if (linearizationParams -> appliedSchedule == NULL)
 			return isl_stat_error;
 		
+#ifdef MOREVERBOSE
+		linearizationParams -> printer = printer;
+#endif
+		
 #ifdef VERBOSE
-		printf("Applied schedule:\n");
-		fflush(stdout);
-		isl_union_set_dump(linearizationParams -> appliedSchedule);
+		fprintf(stream, "Applied schedule:\n");
+		fflush(stream);
+		printer = isl_printer_print_union_set(printer, linearizationParams -> appliedSchedule);
+		
+		if(printer == NULL) {
+			error(stream, "Memory allocation problem :(");
+			return isl_stat_error;
+		}
+		
+		fprintf(stream, "\n");
 #endif
 		
 		outcome = isl_union_set_foreach_point(linearizationParams -> appliedSchedule, linearize_date, (void *)linearizationParams);
@@ -58,9 +86,16 @@ isl_stat linearize_dates(manipulated_polyhedral_model ** modifiedPolyhedralModel
 		modifiedPolyhedralModel[i] -> linearizedSchedule = isl_union_map_coalesce(linearizationParams -> partialLinearization);
 		
 #ifdef VERBOSE
-		printf("Linearized schedule:\n");
-		fflush(stdout);
-		isl_union_map_dump(linearizationParams -> partialLinearization);
+		fprintf(stream, "Linearized schedule:\n");
+		fflush(stream);
+		printer = isl_printer_print_union_map(printer, linearizationParams -> partialLinearization);
+		
+		if(printer == NULL) {
+			error(stream, "Memory allocation problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif	
 		// Be clean
 		free(linearizationParams);
@@ -71,6 +106,10 @@ isl_stat linearize_dates(manipulated_polyhedral_model ** modifiedPolyhedralModel
 }
 
 isl_stat linearize_date (isl_point * vector, void * user) {
+#ifdef MOREVERBOSE
+	// Handle to the output stream
+	FILE * stream = NULL;
+#endif
 	// Pointer to the input parameters
 	linearize_date_params * params = (linearize_date_params *)user;
 	// Pointer to the singleton set of the point
@@ -86,9 +125,17 @@ isl_stat linearize_date (isl_point * vector, void * user) {
 	
 	
 #ifdef MOREVERBOSE
-	printf("Point being linearized:");
-	fflush(stdout);
-	isl_point_dump(vector);
+	stream = isl_printer_get_file(params -> printer);
+	fprintf(stream, "Point being linearized:");
+	fflush(stream);
+	params -> printer = isl_printer_print_point(params -> printer, vector);
+	
+	if(params -> printer == NULL) {
+		error(stream, "Printing problem :(");
+		return isl_stat_error;
+	} 
+	
+	fprintf(stream, "\n");
 #endif
 	
 	singletonPtr = isl_union_set_from_point(vector);
@@ -97,12 +144,25 @@ isl_stat linearize_date (isl_point * vector, void * user) {
 		return isl_stat_error;
 	
 #ifdef MOREVERBOSE
-	printf("Singleton set:");
-	fflush(stdout);
-	isl_union_set_dump(singletonPtr);
-	printf("Applied schedule:");
-	fflush(stdout);
-	isl_union_set_dump(params -> appliedSchedule);
+	fprintf(stream, "Singleton set:");
+	fflush(stream);
+	params -> printer = isl_printer_print_union_set(params -> printer, singletonPtr);
+	
+	if(params -> printer == NULL) {
+		error(stream, "Printing problem :(");
+		return isl_stat_error;
+	} 
+	
+	fprintf(stream, "\nApplied schedule:\n");
+	fflush(stream);
+	params -> printer = isl_printer_print_union_set(params -> printer, params -> appliedSchedule);
+	
+	if(params -> printer == NULL) {
+		error(stream, "Printing problem :(");
+		return isl_stat_error;
+	}
+	
+	fprintf(stream, "\n");
 #endif
 	
 	lexLtSetPtr = isl_union_map_domain(isl_union_set_lex_lt_union_set(isl_union_set_copy(params -> appliedSchedule), isl_union_set_copy(singletonPtr)));
@@ -111,9 +171,16 @@ isl_stat linearize_date (isl_point * vector, void * user) {
 		return isl_stat_error;
 	
 #ifdef MOREVERBOSE
-	printf("Set of lexicographically smaller dates:");
-	fflush(stdout);
-	isl_union_set_dump(lexLtSetPtr);
+	fprintf(stream, "Set of lexicographically smaller dates:\n");
+	fflush(stream);
+	params -> printer = isl_printer_print_union_set(params -> printer, lexLtSetPtr);
+	
+	if(params -> printer == NULL) {
+		error(stream, "Printing problem :(");
+		return isl_stat_error;
+	} 
+	
+	fprintf(stream, "\n");
 #endif
 	
 	cardParams = malloc(sizeof(set_cardinality_params));
@@ -129,7 +196,10 @@ isl_stat linearize_date (isl_point * vector, void * user) {
 		return isl_stat_error;
 	
 #ifdef MOREVERBOSE
-	printf("Cardinality of the set: %d\n", cardParams -> count);
+	fprintf(stream, "Cardinality of the set: %d\n", cardParams -> count);
+//	fprintf(stream, "Barvinok cardinality:\n");
+//	fflush(stream);
+//	isl_pw_qpolynomial_dump(isl_set_card(isl_set_from_union_set(lexLtSetPtr)));
 #endif
 	
 	datePointPtr = isl_point_zero(isl_space_set_alloc(isl_union_set_get_ctx(singletonPtr), 0, 1));
@@ -139,9 +209,16 @@ isl_stat linearize_date (isl_point * vector, void * user) {
 		return isl_stat_error;
 
 #ifdef MOREVERBOSE
-	printf("Linearized date point:");
-	fflush(stdout);
-	isl_point_dump(datePointPtr);
+	fprintf(stream, "Linearized date point: ");
+	fflush(stream);
+	params -> printer = isl_printer_print_point(params -> printer, datePointPtr);
+	
+	if(params -> printer == NULL) {
+		error(stream, "Printing problem :(");
+		return isl_stat_error;
+	}
+	
+	fprintf(stream, "\n");
 #endif
 	
 	if (params -> partialLinearization == NULL)
@@ -150,10 +227,17 @@ isl_stat linearize_date (isl_point * vector, void * user) {
 		params -> partialLinearization = isl_union_map_union(params -> partialLinearization, isl_union_map_from_domain_and_range(singletonPtr, isl_union_set_from_point(datePointPtr)));
 	
 #ifdef MOREVERBOSE
-	printf("Partial linearization:");
-	fflush(stdout);
-	isl_union_map_dump(params -> partialLinearization);
-#endif	
+	fprintf(stream, "Partial linearization:\n");
+	fflush(stream);
+	params -> printer = isl_printer_print_union_map(params -> printer, params -> partialLinearization);
+	
+	if(params -> printer == NULL) {
+		error(stream, "Printing problem :(");
+		return isl_stat_error;
+	} 
+	
+	fprintf(stream, "\n");
+#endif
 	
 	//Be clean
 	free(cardParams);

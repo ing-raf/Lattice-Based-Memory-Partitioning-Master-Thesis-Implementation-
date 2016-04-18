@@ -17,11 +17,15 @@
 
 isl_bool findOutermostParallel (__isl_keep isl_schedule_node *, void *);
 
-isl_stat physical_schedule (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model ** modifiedPolyhedralModel, unsigned numTasks) {
+isl_stat physical_schedule (FILE * stream, isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model ** modifiedPolyhedralModel, unsigned numTasks) {
 	// Dimensionality of the domain of the schedule of the current task
 	unsigned scheduleDim = 0;
 	// Depth of the parallel dimension of the current task
 	int parallelIteratorPos = -1;
+#ifdef VERBOSE
+	// Pointer to the printer
+	isl_printer * printer = NULL;
+#endif
 	// Pointer to the schedule tree of the current task
 	isl_schedule * scheduleTreePtr = NULL;
 	// Pointer to the original schedule of the current task
@@ -45,16 +49,32 @@ isl_stat physical_schedule (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr
 		isl_schedule_foreach_schedule_node_top_down(scheduleTreePtr, findOutermostParallel, (void *)(&parallelIteratorPos) );
 		
 #ifdef VERBOSE
-		info("Task %d)", i);
-		printf("Outermost parallel dimension found: %i\n", parallelIteratorPos);
+		info(stream, "Task %d)", i);
+		fprintf(stream, "Outermost parallel dimension found: %i\n", parallelIteratorPos);
+		
+		printer = isl_printer_to_file(optionsHdl, stream);
+		
+		if(printer == NULL) {
+			error(stream, "Memory allocation problem :(");
+			return isl_stat_error;
+		} 
+		
+		isl_printer_set_indent(printer, moreIndent);
 #endif
 		
 		schedulePtr = isl_schedule_get_map(scheduleTreePtr);
 		
 #ifdef VERBOSE
-		printf("Flattened schedule:\n");
-		fflush(stdout);
-		isl_union_map_dump(schedulePtr);
+		fprintf(stream, "Flattened schedule:\n");
+		fflush(stream);
+		printer = isl_printer_print_union_map(printer, schedulePtr);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif
 		scheduleSpacePtr = isl_set_get_space(isl_set_from_union_set(isl_union_map_range(isl_union_map_copy(schedulePtr))));
 		
@@ -69,9 +89,16 @@ isl_stat physical_schedule (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr
 		scheduleDim = isl_local_space_dim(scheduleLocalSpacePtr, isl_dim_set);
 		
 #ifdef VERBOSE
-		printf("Dimensionality of the schedule domain: %d\n", scheduleDim);
-		fflush(stdout);
-		isl_local_space_dump(scheduleLocalSpacePtr);
+		fprintf(stream, "Dimensionality of the schedule domain: %d\n", scheduleDim);
+		fflush(stream);
+		printer = isl_printer_print_local_space(printer, scheduleLocalSpacePtr);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif
 		// The space of the multiple affine function is obtained by artificially building the universal relation between two copies of the schedule set
 		physicalScheduleFunctionPtr = isl_multi_aff_identity(isl_map_get_space(isl_map_from_domain_and_range(isl_set_universe(isl_space_copy(scheduleSpacePtr)), isl_set_universe(isl_space_copy(scheduleSpacePtr)))));
@@ -80,9 +107,16 @@ isl_stat physical_schedule (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr
 			return isl_stat_error;
 		
 #ifdef MOREVERBOSE
-		printf("Physical schedule to be built:\n");
-		fflush(stdout);
-		isl_multi_aff_dump(physicalScheduleFunctionPtr);
+		fprintf(stream, "Physical schedule to be built:\n");
+		fflush(stream);
+		printer = isl_printer_print_multi_aff(printer, physicalScheduleFunctionPtr);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif
 		
 		// Parameter 1 of isl_aff_var_on_domain is annotated __isl_take
@@ -92,34 +126,63 @@ isl_stat physical_schedule (isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr
 			return isl_stat_error;
 		
 #ifdef VERBOSE
-		printf("Physical schedule dimension to be built:\n");
-		fflush(stdout);
-		isl_aff_dump(physicalScheduleDimensionPtr);
+		fprintf(stream, "Physical schedule dimension to be built:\n");
+		fflush(stream);
+		printer = isl_printer_print_aff(printer, physicalScheduleDimensionPtr);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif
 		
 		physicalScheduleDimensionPtr = isl_aff_set_coefficient_val(physicalScheduleDimensionPtr, isl_dim_in, parallelIteratorPos, isl_val_inv(isl_val_int_from_si(optionsHdl, N[i])));
 		physicalScheduleDimensionPtr = isl_aff_floor(physicalScheduleDimensionPtr);
 		
 #ifdef MOREVERBOSE
-		printf("Physical schedule dimension built:\n");
-		fflush(stdout);
-		isl_aff_dump(physicalScheduleDimensionPtr);
+		fprintf(stream, "Physical schedule dimension built:\n");
+		fflush(stream);
+		printer = isl_printer_print_aff(printer, physicalScheduleDimensionPtr);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif
 		
 		 physicalScheduleFunctionPtr = isl_multi_aff_set_aff(physicalScheduleFunctionPtr, parallelIteratorPos, physicalScheduleDimensionPtr);
 		 
 #ifdef VERBOSE
-		printf("Physical schedule built:\n");
-		fflush(stdout);
-		isl_multi_aff_dump(physicalScheduleFunctionPtr);
+		fprintf(stream, "Physical schedule built:\n");
+		fflush(stream);
+		printer = isl_printer_print_multi_aff(printer, physicalScheduleFunctionPtr);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
 #endif
 		
 		modifiedPolyhedralModel[i] -> flattenedSchedule = isl_union_map_apply_range(schedulePtr, isl_union_map_from_map(isl_map_from_multi_aff(physicalScheduleFunctionPtr)));
 		
 #ifdef VERBOSE
-		printf("Physical schedule as a relation:\n");
-		fflush(stdout);
-		isl_union_map_dump(modifiedPolyhedralModel[i] -> flattenedSchedule);
+		fprintf(stream, "Physical schedule as a relation:\n");
+		fflush(stream);
+		printer = isl_printer_print_union_map(printer, modifiedPolyhedralModel[i] -> flattenedSchedule);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
+		isl_printer_free(printer);
 #endif
 	}
 	

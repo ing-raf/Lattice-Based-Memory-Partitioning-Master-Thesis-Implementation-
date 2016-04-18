@@ -3,7 +3,6 @@
  * helper functions
  */
 #include<stdlib.h>
-#include<stdio.h>
 
 #include "support.h"
 #include "colours.h"
@@ -15,87 +14,90 @@ const char * phaseNames[] = {
 	"Concurrent dates computation",
 };
 
-phase * start () {
+phase * start (FILE * stream) {
 	
 	phase * newPhase = malloc(sizeof(phase));
 	newPhase -> phase_num = 0;
 	
 	__SET_MAGENTA
-	printf("Step %d) - %s", (newPhase -> phase_num) + 1, phaseNames[newPhase -> phase_num]);
+	fprintf(stream, "Step %d) - %s", (newPhase -> phase_num) + 1, phaseNames[newPhase -> phase_num]);
 	__SET_DEFAULT
-	printf("\n");
+	fprintf(stream, "\n");
 	
 	return newPhase;
 }
 
-void new_phase (phase * phasePtr) {
+void new_phase (FILE * stream, phase * phasePtr) {
 	
 	phasePtr -> phase_num += 1;
 	
 	__SET_MAGENTA
-	printf("Step %d) - %s", (phasePtr -> phase_num) + 1, phaseNames[phasePtr -> phase_num]);
+	fprintf(stream, "Step %d) - %s", (phasePtr -> phase_num) + 1, phaseNames[phasePtr -> phase_num]);
 	__SET_DEFAULT
-	printf("\n");
+	fprintf(stream, "\n");
 }
 
-void complete_phase (phase * phasePtr) {
+void complete_phase (FILE * stream, phase * phasePtr) {
 	
 	__SET_MAGENTA
-	printf("Step %d) - %s - ", (phasePtr -> phase_num) + 1, phaseNames[phasePtr -> phase_num]);
+	fprintf(stream, "Step %d) - %s - ", (phasePtr -> phase_num) + 1, phaseNames[phasePtr -> phase_num]);
 	__SET_GREEN
-	printf("Completed");
+	fprintf(stream, "Completed");
 	__SET_DEFAULT
-	printf("\n");
+	fprintf(stream, "\n");
 }
 
 
-void abort_phase (phase * phasePtr) {
+void abort_phase (FILE * stream, phase * phasePtr) {
 	
 	__SET_MAGENTA
-	printf("Step %d) - %s - ", (phasePtr -> phase_num) + 1, phaseNames[phasePtr -> phase_num]);
+	fprintf(stream, "Step %d) - %s - ", (phasePtr -> phase_num) + 1, phaseNames[phasePtr -> phase_num]);
 	__SET_RED
-	printf("Failed");
+	fprintf(stream, "Failed");
 	__SET_DEFAULT
-	printf("\n");
+	fprintf(stream, "\n");
 	
 	free(phasePtr);
 	exit(-1);	
 }
 
-void error (const char * message) {
+void error (FILE * stream, const char * message) {
 	
 	__SET_RED
-	printf("%s", message);
+	fprintf(stream, "%s", message);
 	__SET_DEFAULT
-	printf("\n");
+	fprintf(stream, "\n");
 	
 } 
 
-void warning (const char * message) {
+void warning (FILE * stream, const char * message) {
 	
 	__SET_YELLOW
-	printf("%s", message);
+	fprintf(stream, "%s", message);
 	__SET_DEFAULT
-	printf("\n");
+	fprintf(stream, "\n");
 	
 } 
 
-void info (const char * message, int num) {
+void info (FILE * stream, const char * message, int num) {
 	
 	__SET_BLUE
-	printf(message, num);
+	fprintf(stream, message, num);
 	__SET_DEFAULT
-	printf("\n");
+	fprintf(stream, "\n");
 	
 } 
 
-void finish (phase * phasePtr) {
+void finish (FILE * stream, phase * phasePtr) {
 	
 	__SET_GREEN
-	printf("Operation completed successfully");
+	fprintf(stream, "Operation completed successfully");
 	__SET_DEFAULT
-	printf("\n");
+	fprintf(stream, "\n");
 	
 	free(phasePtr);
+	
+	if(stream != stdout)
+		fclose(stream);
 	exit(0);
 } 

@@ -12,16 +12,16 @@ main: $(PROGNAME).c support.h partitioning.h config.h model.h
 parsing: parsing.c partitioning.h support.h
 	gcc $(CFLAGS) -c parsing.c -o parsing.o
 
-virtual-address-space: virtual-address-space.c partitioning.h support.h model.h
+virtual-address-space: virtual-address-space.c partitioning.h config.h support.h model.h
 	gcc $(CFLAGS) -c virtual-address-space.c -o virtual-address-space.o
 
 polyhedral-slice: polyhedral-slice.c partitioning.h config.h support.h model.h
 	gcc $(CFLAGS) -c polyhedral-slice.c -o polyhedral-slice.o
 
-parameters: parameters.c partitioning.h config.h support.h
+parameters: parameters.c partitioning.h config.h support.h model.h
 	gcc $(CFLAGS) -c parameters.c -o parameters.o
 
-concurrent: concurrent.c partitioning.h support.h
+concurrent: concurrent.c partitioning.h config.h support.h model.h
 	gcc $(CFLAGS) -c concurrent.c -o concurrent.o
 
 model: model.c model.h

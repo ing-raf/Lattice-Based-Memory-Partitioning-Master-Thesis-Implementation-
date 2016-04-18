@@ -6,10 +6,8 @@
  * for the Uniform Memory Access time case
  */ 
 #include<stdlib.h>
-
-#ifdef VERBOSE
 #include<stdio.h>
-#endif
+#include<string.h>
 
 #include<pet.h>
 
@@ -18,12 +16,16 @@
 #include "model.h"
 #include "partitioning.h"
 
+const unsigned OPTIONS = 1;
+
 char ** validate_input(int, char**);
 
 // Note that when an array lasts in Ptr, its elements are pointers
 int main(int argc, char ** argv) {
 	// Pointer to the current phase, used for graphical purposes
 	phase * phasePtr = NULL;
+	// Handle to the output stream
+	FILE * outputStreamHdl = NULL;
 	// Handle for the configuration of the isl and pet libraries
 	isl_ctx * optionsHdl = NULL;
 	// Array of task names
@@ -38,126 +40,133 @@ int main(int argc, char ** argv) {
 	isl_stat outcome = isl_stat_ok;
 	
 	// 1a) We check if the user passed some sources to work with 
-	phasePtr = start();
+	if (argc <= OPTIONS + 1) {
+		perror("Not enough input file(s)");
+		exit(1);
+	}
+	
+	
+	if (strcmp(argv[1], "stdout") == 0)
+		outputStreamHdl = stdout;
+	else {
+		outputStreamHdl = fopen(argv[1],"w");
+		
+		if (outputStreamHdl == NULL) {
+			perror("Cannot create the output file");
+			exit(1);
+		}
+	}
+	
+	phasePtr = start(outputStreamHdl);
 	
 	if (phasePtr == NULL) {
-		error("Memory allocation problem :(");
-		abort_phase(phasePtr);
+		error(outputStreamHdl, "Memory allocation problem :(");
+		abort_phase(outputStreamHdl, phasePtr);
 	}
 	
-	if (argc <= 1) {
-		error("Not enough input file(s)");
-		abort_phase(phasePtr);
-	}
-	
-	numTasks = argc - 1;
-	
-#ifdef VERBOSE
-	printf("Overall number of tasks: %d\n", numTasks);
-#endif
+	numTasks = argc - OPTIONS - 1;
 	
 	tasks = validate_input(numTasks, argv);
 	
 	if (tasks == NULL) {
-		printf("Too much tasks");
-		abort_phase(phasePtr);
+		fprintf(outputStreamHdl, "Memory allocation problem :(");
+		abort_phase(outputStreamHdl, phasePtr);
 	}
 	
+	
 #ifdef VERBOSE
-	printf("Task names:\n");
+	fprintf(outputStreamHdl, "Overall number of tasks: %d\n", numTasks);
+	fprintf(outputStreamHdl, "Task names:\n");
 	for (int i = 0; i < numTasks; i++)
-		printf("%d)\t%s\n", i, tasks[i]);
+		fprintf(outputStreamHdl, "%d)\t%s\n", i, tasks[i]);
 #endif
 	
 	// 1b) Now we parse the input sources to get the whole polyhedral model
 	optionsHdl = isl_ctx_alloc_with_pet_options();
 	
 	if (optionsHdl == NULL) {
-		error("Sorry, there is something wrong with one of the libraries :(");
-		abort_phase(phasePtr);
+		error(outputStreamHdl, "Sorry, there is something wrong with one of the libraries :(");
+		abort_phase(outputStreamHdl, phasePtr);
 	}
 	
 	polyhedralModelPtr = malloc(numTasks * sizeof(pet_scop *));
 	
 	if (polyhedralModelPtr == NULL) {
-		error("Memory allocation problem :(");
-		return isl_stat_error;
+		error(outputStreamHdl, "Memory allocation problem :(");
+		abort_phase(outputStreamHdl, phasePtr);
 	}
 	
-	outcome = parse_input(optionsHdl, tasks, polyhedralModelPtr, numTasks);
+	outcome = parse_input(outputStreamHdl, optionsHdl, tasks, polyhedralModelPtr, numTasks);
 	
 	if (outcome == isl_stat_error) {
-		error("Error during parsing input files");
-		abort_phase(phasePtr);
+		error(outputStreamHdl, "Error during parsing input files");
+		abort_phase(outputStreamHdl, phasePtr);
 	}
 	
-	complete_phase(phasePtr);
+	complete_phase(outputStreamHdl, phasePtr);
 	
 	// 2) Virtual memory allocation 
-	new_phase(phasePtr);
+	new_phase(outputStreamHdl, phasePtr);
 	
 	modifiedPolyhedralModel = manipulated_polyhedral_model_array_alloc(numTasks);
 	
 	if (modifiedPolyhedralModel == NULL) {
-		error("Memory allocation problem :(");
-		abort_phase(phasePtr);
+		error(outputStreamHdl, "Memory allocation problem :(");
+		abort_phase(outputStreamHdl, phasePtr);
 	}
 	
-	outcome = virtual_allocation(optionsHdl, polyhedralModelPtr, modifiedPolyhedralModel, numTasks);
+	outcome = virtual_allocation(outputStreamHdl, optionsHdl, polyhedralModelPtr, modifiedPolyhedralModel, numTasks);
 	
 	if (outcome == isl_stat_error) {
-		error("Error during virtual address space allocation");
-		abort_phase(phasePtr);
+		error(outputStreamHdl, "Error during virtual address space allocation");
+		abort_phase(outputStreamHdl, phasePtr);
 	}
 	
-	complete_phase(phasePtr);
+	complete_phase(outputStreamHdl, phasePtr);
 	
 	// 3) Building the physical schedule
-	new_phase(phasePtr);
+	new_phase(outputStreamHdl, phasePtr);
 	
-	outcome = physical_schedule(optionsHdl, polyhedralModelPtr, modifiedPolyhedralModel, numTasks);
+	outcome = physical_schedule(outputStreamHdl, optionsHdl, polyhedralModelPtr, modifiedPolyhedralModel, numTasks);
 	
 	if (outcome == isl_stat_error) {
-		error("Error during physical schedule building");
-		abort_phase(phasePtr);
+		error(outputStreamHdl, "Error during physical schedule building");
+		abort_phase(outputStreamHdl, phasePtr);
 	}
 	
-	complete_phase(phasePtr);
+	complete_phase(outputStreamHdl, phasePtr);
 	
 	// 4) Building the linearized schedule
-	new_phase(phasePtr);
+	new_phase(outputStreamHdl, phasePtr);
 	
-	outcome = eliminate_parameters(polyhedralModelPtr, modifiedPolyhedralModel, numTasks);
-	
-	if (outcome == isl_stat_error) {
-		error("Error during parameter projection out");
-		abort_phase(phasePtr);
-	}
-	
-	outcome = linearize_dates(modifiedPolyhedralModel, numTasks);
+	outcome = eliminate_parameters(outputStreamHdl, polyhedralModelPtr, modifiedPolyhedralModel, numTasks);
 	
 	if (outcome == isl_stat_error) {
-		error("Error during dates linearization");
-		abort_phase(phasePtr);
+		error(outputStreamHdl, "Error during parameter projection out");
+		abort_phase(outputStreamHdl, phasePtr);
 	}
 	
-	complete_phase(phasePtr);
+	outcome = linearize_dates(outputStreamHdl, modifiedPolyhedralModel, numTasks);
+	
+	if (outcome == isl_stat_error) {
+		error(outputStreamHdl, "Error during dates linearization");
+		abort_phase(outputStreamHdl, phasePtr);
+	}
+	
+	complete_phase(outputStreamHdl, phasePtr);
 	
 	// Be clean
 	manipulated_polyhedral_model_array_free(modifiedPolyhedralModel, numTasks);
 	free(tasks);
-	finish(phasePtr);
+	finish(outputStreamHdl, phasePtr);
 }
 
 char ** validate_input(int n, char ** argv) {
 	
-	if (n > MAXTASKS) 
-		return NULL;
-	
 	char ** names = malloc(n * sizeof(char *));
 	
 	for (int i = 0; i < n; i++)
-		names[i] = argv[i+1];
+		names[i] = argv[i+OPTIONS+1];
 	
 	return names;
 }

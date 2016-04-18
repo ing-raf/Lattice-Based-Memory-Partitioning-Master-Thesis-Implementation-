@@ -4,6 +4,11 @@
 
 #include "config.h"
 
+#define NUMSPACES 4
+
+const int moreIndent = NUMSPACES;
+const int lessIndent = -NUMSPACES;
+
 const unsigned MAXTASKS = 3; 
 const unsigned N[] = {
 	6,

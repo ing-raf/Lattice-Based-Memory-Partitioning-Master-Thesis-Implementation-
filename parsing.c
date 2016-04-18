@@ -17,7 +17,7 @@ const char * sourceExtension = ".c";
 const char * scheduleRelativePath = "../Tests/polyhedral-extraction/outputs/"; 
 const char * scheduleExtension = ".isl.schedule";
 
-isl_stat parse_input(isl_ctx * optionsHdl, char ** tasks, pet_scop ** polyhedralModelPtr, unsigned numTasks) {
+isl_stat parse_input(FILE * stream, isl_ctx * optionsHdl, char ** tasks, pet_scop ** polyhedralModelPtr, unsigned numTasks) {
 	// File name with relative path
 	char * fileName;
 	// Handle to the file containing the modified schedule
@@ -32,19 +32,19 @@ isl_stat parse_input(isl_ctx * optionsHdl, char ** tasks, pet_scop ** polyhedral
 		strcat(fileName, sourceExtension);
 		
 #ifdef VERBOSE
-		printf("Parsing file %s\n", fileName);
+		fprintf(stream, "Parsing file %s\n", fileName);
 #endif
 		
 		polyhedralModelPtr[i] = pet_scop_extract_from_C_source(optionsHdl, fileName, NULL);
 		
 		if (polyhedralModelPtr[i] == NULL) {
-			error("Sorry, there is something wrong with the pet library :(");
+			error(stream, "Sorry, there is something wrong with the pet library :(");
 			return isl_stat_error;
 		}
 		
 #ifdef MOREVERBOSE
-		printf("Polyhedral model:\n");
-		fflush(stdout);
+		fprintf(stream, "Polyhedral model:\n");
+		fflush(stream);
 		pet_scop_dump(polyhedralModelPtr[i]);
 #endif
 		
@@ -59,20 +59,20 @@ isl_stat parse_input(isl_ctx * optionsHdl, char ** tasks, pet_scop ** polyhedral
 		strcat(fileName, scheduleExtension);
 		
 #ifdef VERBOSE
-		printf("Reading file %s\n", fileName);
+		fprintf(stream, "Reading file %s\n", fileName);
 #endif
 		filePtr = fopen(fileName, "r");
 		
 		if (filePtr == NULL) {
-			error("File not found");
+			error(stream, "File not found");
 			return isl_stat_error;
 		}
 		
 		polyhedralModelPtr[i] -> schedule = isl_schedule_read_from_file(optionsHdl, filePtr);
 		
 #ifdef MOREVERBOSE
-		printf("Modified polyhedral model:\n");
-		fflush(stdout);
+		fprintf(stream, "Modified polyhedral model:\n");
+		fflush(stream);
 		pet_scop_dump(polyhedralModelPtr[i]);
 #endif
 		
