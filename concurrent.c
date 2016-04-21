@@ -26,7 +26,7 @@ typedef struct {
 isl_stat linearize_date(isl_point *, void *);
 isl_stat set_cardinality(isl_point *, void *);
 
-isl_stat linearize_dates(FILE * stream, manipulated_polyhedral_model ** modifiedPolyhedralModel, unsigned numTasks) {
+isl_stat linearize_dates(FILE * stream, manipulated_polyhedral_model ** modifiedPolyhedralModelPtr, unsigned numTasks) {
 #ifdef VERBOSE
 	// Pointer to the printer
 	isl_printer * printer = NULL;
@@ -40,7 +40,7 @@ isl_stat linearize_dates(FILE * stream, manipulated_polyhedral_model ** modified
 		
 #ifdef VERBOSE
 		info(stream, "Task %d)", i);
-		printer = isl_printer_to_file(isl_union_set_get_ctx(modifiedPolyhedralModel[i] -> instanceSet), stream);
+		printer = isl_printer_to_file(isl_union_set_get_ctx(modifiedPolyhedralModelPtr[i] -> instanceSet), stream);
 		
 		if(printer == NULL) {
 			error(stream, "Memory allocation problem :(");
@@ -56,7 +56,7 @@ isl_stat linearize_dates(FILE * stream, manipulated_polyhedral_model ** modified
 			return isl_stat_error;
 		
 		linearizationParams -> partialLinearization = NULL;
-		linearizationParams -> appliedSchedule = isl_union_set_apply(modifiedPolyhedralModel[i] -> instanceSet, modifiedPolyhedralModel[i] -> flattenedSchedule);
+		linearizationParams -> appliedSchedule = isl_union_set_apply(isl_union_set_copy(modifiedPolyhedralModelPtr[i] -> instanceSet), isl_union_map_copy(modifiedPolyhedralModelPtr[i] -> flattenedSchedule));
 		
 		if (linearizationParams -> appliedSchedule == NULL)
 			return isl_stat_error;
@@ -71,7 +71,7 @@ isl_stat linearize_dates(FILE * stream, manipulated_polyhedral_model ** modified
 		printer = isl_printer_print_union_set(printer, linearizationParams -> appliedSchedule);
 		
 		if(printer == NULL) {
-			error(stream, "Memory allocation problem :(");
+			error(stream, "Printing problem :(");
 			return isl_stat_error;
 		}
 		
@@ -83,19 +83,21 @@ isl_stat linearize_dates(FILE * stream, manipulated_polyhedral_model ** modified
 		if (outcome == isl_stat_error)
 			return isl_stat_error;
 		
-		modifiedPolyhedralModel[i] -> linearizedSchedule = isl_union_map_coalesce(linearizationParams -> partialLinearization);
+		modifiedPolyhedralModelPtr[i] -> linearizedSchedule = isl_union_map_coalesce(linearizationParams -> partialLinearization);
+		
+//		free(linearizationParams);
 		
 #ifdef VERBOSE
 		fprintf(stream, "Linearized schedule:\n");
-		fflush(stream);
-		printer = isl_printer_print_union_map(printer, linearizationParams -> partialLinearization);
+		printer = isl_printer_print_union_map(printer, modifiedPolyhedralModelPtr[i] -> linearizedSchedule);
 		
 		if(printer == NULL) {
-			error(stream, "Memory allocation problem :(");
+			error(stream, "Printing problem :(");
 			return isl_stat_error;
 		} 
 		
 		fprintf(stream, "\n");
+		fflush(stream);
 #endif	
 		// Be clean
 		free(linearizationParams);

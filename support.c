@@ -12,6 +12,7 @@ const char * phaseNames[] = {
 	"Virtual address space allocation",
 	"Physical schedule building",
 	"Concurrent dates computation",
+	"Polyhedral slice building",
 };
 
 phase * start (FILE * stream) {
@@ -67,6 +68,7 @@ void error (FILE * stream, const char * message) {
 	fprintf(stream, "%s", message);
 	__SET_DEFAULT
 	fprintf(stream, "\n");
+	fflush(stream);
 	
 } 
 
@@ -76,6 +78,7 @@ void warning (FILE * stream, const char * message) {
 	fprintf(stream, "%s", message);
 	__SET_DEFAULT
 	fprintf(stream, "\n");
+	fflush(stream);
 	
 } 
 

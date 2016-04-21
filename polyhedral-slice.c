@@ -17,7 +17,7 @@
 
 isl_bool findOutermostParallel (__isl_keep isl_schedule_node *, void *);
 
-isl_stat physical_schedule (FILE * stream, isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model ** modifiedPolyhedralModel, unsigned numTasks) {
+isl_stat physical_schedule (FILE * stream, isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model ** modifiedPolyhedralModelPtr, unsigned numTasks) {
 	// Dimensionality of the domain of the schedule of the current task
 	unsigned scheduleDim = 0;
 	// Depth of the parallel dimension of the current task
@@ -169,12 +169,12 @@ isl_stat physical_schedule (FILE * stream, isl_ctx * optionsHdl, pet_scop ** pol
 		fprintf(stream, "\n");
 #endif
 		
-		modifiedPolyhedralModel[i] -> flattenedSchedule = isl_union_map_apply_range(schedulePtr, isl_union_map_from_map(isl_map_from_multi_aff(physicalScheduleFunctionPtr)));
+		modifiedPolyhedralModelPtr[i] -> flattenedSchedule = isl_union_map_apply_range(schedulePtr, isl_union_map_from_map(isl_map_from_multi_aff(physicalScheduleFunctionPtr)));
 		
 #ifdef VERBOSE
 		fprintf(stream, "Physical schedule as a relation:\n");
 		fflush(stream);
-		printer = isl_printer_print_union_map(printer, modifiedPolyhedralModel[i] -> flattenedSchedule);
+		printer = isl_printer_print_union_map(printer, modifiedPolyhedralModelPtr[i] -> flattenedSchedule);
 		
 		if(printer == NULL) {
 			error(stream, "Printing problem :(");
@@ -189,6 +189,48 @@ isl_stat physical_schedule (FILE * stream, isl_ctx * optionsHdl, pet_scop ** pol
 	
 	return isl_stat_ok;
 }
+
+isl_union_set * polyhedral_slice_build (FILE * stream, isl_union_map * flattenedSchedulePtr, isl_union_map * linearizedSchedulePtr, isl_point * datePtr) {
+#ifdef MOREVERBOSE
+	// Pointer to the printer
+	isl_printer * printer = NULL;
+#endif
+	// Pointer to the singleton set of the point
+	isl_union_set * vectorSetPtr = NULL;
+	
+	vectorSetPtr = isl_union_map_domain(isl_union_map_intersect_range(linearizedSchedulePtr, isl_union_set_from_point(isl_point_copy(datePtr))));
+	
+	if(vectorSetPtr == NULL)
+		return NULL;
+	
+#ifdef MOREVERBOSE
+	printer = isl_printer_to_file(isl_union_set_get_ctx(vectorSetPtr), stream);
+		
+	if(printer == NULL) {
+		error(stream, "Memory allocation problem :(");
+		return NULL;
+	} 
+		
+	isl_printer_set_indent(printer, moreIndent);
+	
+	fprintf(stream, "Schedule date(s): ");
+	
+	printer = isl_printer_print_union_set(printer, vectorSetPtr);
+	
+	if(printer == NULL) {
+		error(stream, "Printing problem :(");
+		return NULL;
+	} 
+	
+	fprintf(stream, "\n");
+	fflush(stream);	
+	
+	isl_printer_free(printer);
+#endif
+	
+	return isl_union_map_domain(isl_union_map_intersect_range(flattenedSchedulePtr, vectorSetPtr));
+}
+
 
 isl_bool findOutermostParallel (__isl_keep isl_schedule_node * node, void * user) {
 	// Depth of the current node

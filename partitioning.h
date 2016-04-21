@@ -16,5 +16,6 @@ isl_stat virtual_allocation (FILE *, isl_ctx *, pet_scop **, manipulated_polyhed
 isl_stat physical_schedule (FILE *, isl_ctx *, pet_scop **, manipulated_polyhedral_model **, unsigned);
 isl_stat eliminate_parameters (FILE *, pet_scop **, manipulated_polyhedral_model **, unsigned);
 isl_stat linearize_dates(FILE *, manipulated_polyhedral_model **, unsigned);
+isl_union_set * polyhedral_slice_build (FILE *, isl_union_map *, isl_union_map *, isl_point *);
 
 #endif /* PARTITIONING_H_ */
