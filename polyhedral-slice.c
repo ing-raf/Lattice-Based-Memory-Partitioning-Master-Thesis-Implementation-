@@ -186,7 +186,6 @@ isl_stat physical_schedule (FILE * stream, isl_ctx * optionsHdl, pet_scop ** pol
 #endif
 	}
 	
-	
 	return isl_stat_ok;
 }
 

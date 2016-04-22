@@ -13,6 +13,7 @@ const char * phaseNames[] = {
 	"Physical schedule building",
 	"Concurrent dates computation",
 	"Polyhedral slice building",
+	"Concurrent dataset building",
 };
 
 phase * start (FILE * stream) {

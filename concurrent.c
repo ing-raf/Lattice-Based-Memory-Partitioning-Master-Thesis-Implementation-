@@ -256,3 +256,80 @@ isl_stat set_cardinality (isl_point * vector, void * user) {
 	
 	return isl_stat_ok;
 }
+
+isl_set * concurrent_dataset_build(FILE * stream, manipulated_polyhedral_model ** modifiedPolyhedralModelPtr, isl_union_set ** polyhedralSlicePtr, unsigned numTasks) {
+	// Array of the datasets of each task
+	isl_set ** datasetPtr = NULL;
+	// Pointer to a part of the dataset of the current task, or at the current concurrent dataset
+	isl_set * partialDatasetPtr = NULL;
+#ifdef MOREVERBOSE
+	// Pointer to the printer
+	isl_printer * printer = NULL;
+#endif
+	
+	datasetPtr = malloc(numTasks * sizeof(isl_set *));
+	
+	if(datasetPtr == NULL) {
+		error(stream, "Memory allocation problem for the dataset array");
+		return NULL;
+	}
+	
+	for (int i = 0; i < numTasks; i++) {
+#ifdef MOREVERBOSE
+		info(stream, "Task %d)", i);
+#endif
+		datasetPtr[i] = isl_set_empty(isl_set_get_space(isl_set_from_union_set(isl_union_map_range(isl_union_map_copy(modifiedPolyhedralModelPtr[i] -> remappedMayReads)))));
+		
+		if (datasetPtr[i] == NULL) {
+			error(stream, "Memory allocation problem for the dataset :(");
+			return NULL;
+		} 
+		
+		if (isl_union_map_is_empty(modifiedPolyhedralModelPtr[i] -> remappedMayReads) == isl_bool_false) {
+			partialDatasetPtr = isl_set_from_union_set(isl_union_set_apply(isl_union_set_copy(polyhedralSlicePtr[i]), isl_union_map_copy(modifiedPolyhedralModelPtr[i] -> remappedMayReads)));
+			
+			datasetPtr[i] = isl_set_union(datasetPtr[i], partialDatasetPtr);
+		}
+		
+		if (isl_union_map_is_empty(modifiedPolyhedralModelPtr[i] -> remappedMayWrites) == isl_bool_false) {
+			partialDatasetPtr = isl_set_from_union_set(isl_union_set_apply(isl_union_set_copy(polyhedralSlicePtr[i]), isl_union_map_copy(modifiedPolyhedralModelPtr[i] -> remappedMayWrites)));
+			
+			datasetPtr[i] = isl_set_union(datasetPtr[i], partialDatasetPtr);
+		}
+		
+		if (isl_union_map_is_empty(modifiedPolyhedralModelPtr[i] -> remappedMustWrites) == isl_bool_false) {
+			partialDatasetPtr = isl_set_from_union_set(isl_union_set_apply(isl_union_set_copy(polyhedralSlicePtr[i]), isl_union_map_copy(modifiedPolyhedralModelPtr[i] -> remappedMustWrites)));
+		
+			datasetPtr[i] = isl_set_union(datasetPtr[i], partialDatasetPtr);
+		}
+		
+#ifdef MOREVERBOSE
+		printer = isl_printer_to_file(isl_set_get_ctx(datasetPtr[i]), stream);
+		
+		if(printer == NULL) {
+			error(stream, "Memory allocation problem :(");
+			return NULL;
+		} 
+		
+		printer = isl_printer_set_indent(printer, moreIndent);
+		
+		fprintf(stream, "Dataset: ");
+		printer = isl_printer_print_set(printer, datasetPtr[i]);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return NULL;
+		} 
+		
+		fprintf(stream, "\n");
+		fflush(stream);
+#endif
+	}
+	
+	partialDatasetPtr = datasetPtr[0];
+	
+	for (int i = 1; i < numTasks; i++)
+		partialDatasetPtr = isl_set_union(partialDatasetPtr, datasetPtr[i]);
+	
+	return isl_set_coalesce(partialDatasetPtr);
+}

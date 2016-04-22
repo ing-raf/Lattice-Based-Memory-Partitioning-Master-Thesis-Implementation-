@@ -211,7 +211,7 @@ int main(int argc, char ** argv) {
 	complete_phase(outputStreamHdl, phasePtr);
 	
 	// This part must be iterated for each one of the linearized dates
-	params = malloc(sizeof(concurrent_part_params *));
+	params = malloc(sizeof(concurrent_part_params));
 	
 	if (params == NULL) {
 		error(outputStreamHdl, "Memory allocation problem for the parameters of the concurrent part:(");
@@ -226,12 +226,12 @@ int main(int argc, char ** argv) {
 	outcome = isl_set_foreach_point(linearized_schedule_dates_set, concurrent_part, (void *)params);
 	
 	if (outcome == isl_stat_error) {
-		exit(1);
 		error(outputStreamHdl, "Error during the concurrent part");
 		abort_phase(outputStreamHdl, phasePtr);
 	}
 	
 	// Be clean
+//	free(params);
 	manipulated_polyhedral_model_array_free(modifiedPolyhedralModelPtr, numTasks);
 	free(tasks);
 	finish(outputStreamHdl, phasePtr);
@@ -256,6 +256,8 @@ isl_stat concurrent_part(isl_point * pointPtr, void * user) {
 	phase phasePoint = *params -> phasePtr;
 	// Pointer to the array of the polyhedral slices
 	isl_union_set ** polyhedralSlicePtr = NULL;
+	// Pointer to the concurrent dataset
+	isl_set * concurrentDatasetPtr = NULL;
 	
 	info (params -> stream, "Linearized date: %d", isl_val_get_num_si(isl_point_get_coordinate_val(pointPtr, isl_dim_set, 0)));
 	
@@ -285,7 +287,7 @@ isl_stat concurrent_part(isl_point * pointPtr, void * user) {
 			return isl_stat_error;
 		}
 		
-#ifdef VERBOSE
+#ifdef MOREVERBOSE
 		printer = isl_printer_set_indent(printer, moreIndent);
 		fprintf(params -> stream, "Polyhedral slice of task %d:\n", i);
 		printer = isl_printer_print_union_set(printer, polyhedralSlicePtr[i]);
@@ -299,6 +301,31 @@ isl_stat concurrent_part(isl_point * pointPtr, void * user) {
 		fflush(params -> stream);
 #endif
 	}
+		
+	complete_phase(params -> stream, &(phasePoint));
+	
+	// 6) Concurrent dataset building
+	new_phase(params -> stream, &(phasePoint));
+	
+	concurrentDatasetPtr = concurrent_dataset_build(params -> stream, params -> modifiedPolyhedralModelPtr, polyhedralSlicePtr, params -> numTasks);
+	
+	if (concurrentDatasetPtr == NULL) {
+		error(params -> stream, "Error during concurrent dataset building");
+		return isl_stat_error;
+	}
+	
+#ifdef VERBOSE
+	fprintf(params -> stream, "Concurrent dataset:\n");
+	printer = isl_printer_print_set(printer, concurrentDatasetPtr);
+		
+	if(printer == NULL) {
+		error(params -> stream, "Printing problem :(");
+		return isl_stat_error;
+	} 
+	
+	fprintf(params -> stream, "\n");
+	fflush(params -> stream);
+#endif
 	
 	complete_phase(params -> stream, &(phasePoint));
 	
