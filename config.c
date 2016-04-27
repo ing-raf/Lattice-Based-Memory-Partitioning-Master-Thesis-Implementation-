@@ -22,6 +22,8 @@ const unsigned NUMPARAMS[] = {
 };
 
 const unsigned PARAMS[2][2] = {
-	{8, 4},
+	{12, 4},
 	{8, 4},
 };
+
+const unsigned NUMBANKS = 8;

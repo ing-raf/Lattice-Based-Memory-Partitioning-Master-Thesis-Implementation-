@@ -46,7 +46,7 @@ isl_stat linearize_dates(FILE * stream, manipulated_polyhedral_model ** modified
 			error(stream, "Memory allocation problem :(");
 			return isl_stat_error;
 		} 
-
+		
 		isl_printer_set_indent(printer, moreIndent);
 #endif
 		
@@ -98,6 +98,7 @@ isl_stat linearize_dates(FILE * stream, manipulated_polyhedral_model ** modified
 		
 		fprintf(stream, "\n");
 		fflush(stream);
+		isl_printer_free(printer);
 #endif	
 		// Be clean
 		free(linearizationParams);
@@ -260,12 +261,13 @@ isl_stat set_cardinality (isl_point * vector, void * user) {
 isl_set * concurrent_dataset_build(FILE * stream, manipulated_polyhedral_model ** modifiedPolyhedralModelPtr, isl_union_set ** polyhedralSlicePtr, unsigned numTasks) {
 	// Array of the datasets of each task
 	isl_set ** datasetPtr = NULL;
-	// Pointer to a part of the dataset of the current task, or at the current concurrent dataset
-	isl_set * partialDatasetPtr = NULL;
+	// Pointer to a part of the dataset of the current task
+	isl_union_set * partialDatasetPtr = NULL;
 #ifdef MOREVERBOSE
 	// Pointer to the printer
 	isl_printer * printer = NULL;
 #endif
+	isl_set * currentDatasetPtr = NULL; 
 	
 	datasetPtr = malloc(numTasks * sizeof(isl_set *));
 	
@@ -286,22 +288,30 @@ isl_set * concurrent_dataset_build(FILE * stream, manipulated_polyhedral_model *
 		} 
 		
 		if (isl_union_map_is_empty(modifiedPolyhedralModelPtr[i] -> remappedMayReads) == isl_bool_false) {
-			partialDatasetPtr = isl_set_from_union_set(isl_union_set_apply(isl_union_set_copy(polyhedralSlicePtr[i]), isl_union_map_copy(modifiedPolyhedralModelPtr[i] -> remappedMayReads)));
+			partialDatasetPtr = isl_union_set_apply(isl_union_set_copy(polyhedralSlicePtr[i]), isl_union_map_copy(modifiedPolyhedralModelPtr[i] -> remappedMayReads));
 			
-			datasetPtr[i] = isl_set_union(datasetPtr[i], partialDatasetPtr);
+			if (isl_union_set_is_empty(partialDatasetPtr) == isl_bool_false)
+				datasetPtr[i] = isl_set_union(datasetPtr[i], isl_set_from_union_set(partialDatasetPtr));
 		}
 		
 		if (isl_union_map_is_empty(modifiedPolyhedralModelPtr[i] -> remappedMayWrites) == isl_bool_false) {
-			partialDatasetPtr = isl_set_from_union_set(isl_union_set_apply(isl_union_set_copy(polyhedralSlicePtr[i]), isl_union_map_copy(modifiedPolyhedralModelPtr[i] -> remappedMayWrites)));
+			partialDatasetPtr = isl_union_set_apply(isl_union_set_copy(polyhedralSlicePtr[i]), isl_union_map_copy(modifiedPolyhedralModelPtr[i] -> remappedMayWrites));
 			
-			datasetPtr[i] = isl_set_union(datasetPtr[i], partialDatasetPtr);
+			if (isl_union_set_is_empty(partialDatasetPtr) == isl_bool_false)
+				datasetPtr[i] = isl_set_union(datasetPtr[i], isl_set_from_union_set(partialDatasetPtr));
 		}
 		
 		if (isl_union_map_is_empty(modifiedPolyhedralModelPtr[i] -> remappedMustWrites) == isl_bool_false) {
-			partialDatasetPtr = isl_set_from_union_set(isl_union_set_apply(isl_union_set_copy(polyhedralSlicePtr[i]), isl_union_map_copy(modifiedPolyhedralModelPtr[i] -> remappedMustWrites)));
-		
-			datasetPtr[i] = isl_set_union(datasetPtr[i], partialDatasetPtr);
+			partialDatasetPtr = isl_union_set_apply(isl_union_set_copy(polyhedralSlicePtr[i]), isl_union_map_copy(modifiedPolyhedralModelPtr[i] -> remappedMustWrites));
+			
+			if (isl_union_set_is_empty(partialDatasetPtr) == isl_bool_false)
+				datasetPtr[i] = isl_set_union(datasetPtr[i], isl_set_from_union_set(partialDatasetPtr));
 		}
+		
+		if (datasetPtr[i] == NULL) {
+			error(stream, "Problem during dataset construction");
+			return NULL;
+		} 
 		
 #ifdef MOREVERBOSE
 		printer = isl_printer_to_file(isl_set_get_ctx(datasetPtr[i]), stream);
@@ -326,10 +336,91 @@ isl_set * concurrent_dataset_build(FILE * stream, manipulated_polyhedral_model *
 #endif
 	}
 	
-	partialDatasetPtr = datasetPtr[0];
+	currentDatasetPtr = datasetPtr[0];
 	
 	for (int i = 1; i < numTasks; i++)
-		partialDatasetPtr = isl_set_union(partialDatasetPtr, datasetPtr[i]);
+		currentDatasetPtr = isl_set_union(currentDatasetPtr, datasetPtr[i]);
 	
-	return isl_set_coalesce(partialDatasetPtr);
+	return isl_set_coalesce(currentDatasetPtr);
+}
+
+isl_stat evaluate_fundamental_lattice(FILE * stream, isl_set * concurrentDatasetPtr, isl_set ** translatesPtr, unsigned long * costPtr) {
+	// Pointer to the Z - polyhedron to be evaluated
+	isl_set * zPolyhedron = NULL;
+	// Maximum number of memory conflicts count for the current fundamental lattice
+	unsigned cost = 0;
+	// Parameters for the callback function
+	set_cardinality_params * cardParams = NULL;
+	// Result of a subroutine
+	isl_stat outcome = isl_stat_ok;
+#ifdef MOREVERBOSE
+	// Pointer to the printer
+	isl_printer * printer = NULL;
+#endif
+	
+	
+	for (int i = 0; i < NUMBANKS; i++) {
+		zPolyhedron = isl_set_intersect(isl_set_copy(concurrentDatasetPtr), isl_set_copy(translatesPtr[i]));
+		
+		if (zPolyhedron == NULL) {
+			error(stream, "Error during building the Z - polyhedron");
+			return isl_stat_error;
+		}
+		
+#ifdef MOREVERBOSE
+		fprintf(stream, "Z - polyhedron of the points in the translate %i:\n", i);
+		
+		printer = isl_printer_to_file(isl_set_get_ctx(concurrentDatasetPtr), stream);
+		
+		if(printer == NULL) {
+			error(stream, "Memory allocation problem :(");
+			return isl_stat_error;
+		}
+		
+		printer = isl_printer_set_indent(printer, moreIndent);
+		
+		printer = isl_printer_print_set(printer, zPolyhedron);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
+		fflush(stream);
+#endif
+		
+		cardParams = malloc(sizeof(set_cardinality_params));
+	
+		if (cardParams == NULL)
+			return isl_stat_error;
+	
+		cardParams -> count = 0;
+	
+		outcome = isl_set_foreach_point (zPolyhedron, set_cardinality, (void *)cardParams);
+	
+		if (outcome == isl_stat_error) {
+			error(stream, "Error during counting points in the Z - polyhedron");
+			return isl_stat_error;
+		}
+		
+		cardParams -> count;
+		
+#ifdef MOREVERBOSE
+		fprintf(stream, "Number of points: %u\n", cardParams -> count);
+		fflush(stream);
+#endif
+		
+		if (cardParams -> count > cost)
+			cost = cardParams -> count;
+	}
+	
+#ifdef VERBOSE
+	fprintf(stream, "Cost function value for the current lattice and the current date: %u\n", cost);
+	fflush(stream);
+#endif
+	
+	*costPtr += cost;
+	
+	return isl_stat_ok;
 }

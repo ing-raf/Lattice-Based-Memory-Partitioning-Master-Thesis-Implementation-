@@ -12,5 +12,6 @@ extern const unsigned MAXTASKS; // to check if there are enough configurations f
 extern const unsigned N[];
 extern const unsigned NUMPARAMS[]; // to support for tasks with different parameters
 extern const unsigned PARAMS[2][2];
+extern const unsigned NUMBANKS;
 
 #endif /* CONFIG_H */

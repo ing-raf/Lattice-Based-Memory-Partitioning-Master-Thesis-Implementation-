@@ -9,7 +9,7 @@ program: main parsing virtual-address-space polyhedral-slice parameters concurre
 main: $(PROGNAME).c support.h partitioning.h config.h model.h
 	gcc $(CFLAGS) -c $(PROGNAME).c -o $(PROGNAME).o
 
-parsing: parsing.c partitioning.h support.h
+parsing: parsing.c partitioning.h config.h support.h
 	gcc $(CFLAGS) -c parsing.c -o parsing.o
 
 virtual-address-space: virtual-address-space.c partitioning.h config.h support.h model.h

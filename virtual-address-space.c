@@ -16,10 +16,8 @@
 // Dimensions added by the mapping policy
 const unsigned dPolicy = 1;
 
-isl_stat virtual_allocation (FILE * stream, isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model ** modifiedPolyhedralModel, unsigned numTasks) {
+isl_stat virtual_allocation (FILE * stream, isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model ** modifiedPolyhedralModel, unsigned numTasks, unsigned * dimPtr) {
 	
-	// Dimension of the allocation address space
-	unsigned dAllocation = 0;
 	// Maximum dimension of the arrays to be allocated
 	unsigned dMax = 0;
 	// Dimension of the padding zeros for the address space currently being reallocated
@@ -93,14 +91,14 @@ isl_stat virtual_allocation (FILE * stream, isl_ctx * optionsHdl, pet_scop ** po
 		if (dMax < dTask[i])
 			dMax = dTask[i];
 	
-	dAllocation = dMax + dPolicy;
+	*dimPtr = dMax + dPolicy;
 #ifdef VERBOSE
-	fprintf(stream, "Maximum dimensionality of the arrays to be allocated: %d\n", dMax);	
-	fprintf(stream, "Dimensionality of the allocation address space: %d\n", dAllocation);
+	fprintf(stream, "Maximum dimensionality of the arrays to be allocated: %d\n", dMax);
+	fprintf(stream, "Dimensionality of the allocation address space: %d\n", *dimPtr);
 #endif	
 		
 	for (int i = 0; i < numTasks; i++) {
-		dZeros = dAllocation - dTask[i] - dPolicy;
+		dZeros = *dimPtr - dTask[i] - dPolicy;
 		
 #ifdef VERBOSE
 		info(stream, "Task %d)", i);
@@ -111,12 +109,12 @@ isl_stat virtual_allocation (FILE * stream, isl_ctx * optionsHdl, pet_scop ** po
 		originalArrayPtr = isl_set_copy(polyhedralModelPtr[i] -> arrays[0] -> extent);
 		// 2) We build the allocation relation
 		// Building the allocation address space set
-		allocationArraySpacePtr = isl_space_set_alloc(optionsHdl, 0, dAllocation);
+		allocationArraySpacePtr = isl_space_set_alloc(optionsHdl, 0, *dimPtr);
 		
 		if (allocationArraySpacePtr == NULL)
 			return isl_stat_error;
 		
-		allocationArraySpacePtr = isl_space_set_tuple_name(allocationArraySpacePtr, isl_dim_set, "V");
+//		allocationArraySpacePtr = isl_space_set_tuple_name(allocationArraySpacePtr, isl_dim_set, "V");
 		
 		if (allocationArraySpacePtr == NULL)
 			return isl_stat_error;
@@ -213,7 +211,7 @@ isl_stat virtual_allocation (FILE * stream, isl_ctx * optionsHdl, pet_scop ** po
 		}
 		
 		// Constraint on the padding zeros
-		for (int j = dPolicy + dTask[i]; j < dAllocation; j++) {
+		for (int j = dPolicy + dTask[i]; j < *dimPtr; j++) {
 			constraintPtr = isl_constraint_alloc_equality(isl_local_space_copy(allocationRelationLocalSpacePtr));
 		
 			if (constraintPtr == NULL)
