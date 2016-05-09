@@ -1,4 +1,4 @@
-PROGNAME=uma
+PROGNAME=numa
 OBJECTS=parsing.o virtual-address-space.o polyhedral-slice.o parameters.o concurrent.o config.o support.o model.o
 
 all : program
