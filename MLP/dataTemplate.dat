@@ -1,0 +1,33 @@
+set P := p0 p1;
+set B := b0 b1;
+set T := t0 t1;
+set D := d0 d1;
+
+param minLatency := 90;
+param nonFirstLattice := 0;
+param l := 1;
+
+param delta :=
+	p0	b0	3
+	p0	b1	1
+	p1	b0	6
+	p1	b1	9
+;
+
+param n :=
+	d0	2
+	d1	3
+;
+
+param mc default 0 :=
+	d0	p0	t0	2
+	d0	p0	t1	8
+	d0	p1	t0	5
+	d0	p1	t1	3
+	d1	p0	t0	6
+	d1	p0	t1	2
+	d1	p1	t0	3
+	d1	p1	t1	8
+;
+
+end;

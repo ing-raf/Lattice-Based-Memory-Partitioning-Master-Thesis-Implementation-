@@ -12,11 +12,11 @@ const char * phaseNames[] = {
 	"Virtual address space allocation",
 	"Reading lattices",
 	"Physical schedule building",
+	"Allocation building",
 	"Concurrent dates computation",
-	"Polyhedral slice building",
-	"Concurrent dataset building",
-	"Cost function computation",
-	"Cost function evaluation"
+	"Instant local slice building",
+	"Mapping parameters computation",
+	"Mapping parameters printing"
 };
 
 phase * start (FILE * stream) {

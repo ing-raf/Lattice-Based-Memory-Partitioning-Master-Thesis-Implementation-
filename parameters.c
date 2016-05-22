@@ -101,6 +101,28 @@ isl_stat eliminate_parameters (FILE * stream, pet_scop ** polyhedralModelPtr, ma
 		
 		fprintf(stream, "\n");
 #endif
+
+#ifndef MOREVERBOSE
+		modifiedPolyhedralModel[i] -> allocation = eliminate_parameters_map (modifiedPolyhedralModel[i] -> allocation, i);
+#else
+		modifiedPolyhedralModel[i] -> allocation = eliminate_parameters_map (printer, modifiedPolyhedralModel[i] -> allocation, i);
+#endif
+		
+		if (modifiedPolyhedralModel[i] -> allocation == NULL)
+			return isl_stat_error;
+		
+#ifdef MOREVERBOSE
+		fprintf(stream, "Constrained allocation:\n");
+		fflush(stream);
+		printer = isl_printer_print_union_map(printer, modifiedPolyhedralModel[i] -> allocation);
+		
+		if(printer == NULL) {
+			error(stream, "Printing problem :(");
+			return isl_stat_error;
+		} 
+		
+		fprintf(stream, "\n");
+#endif
 		
 #ifndef MOREVERBOSE
 		modifiedPolyhedralModel[i] -> remappedMayReads = eliminate_parameters_map (modifiedPolyhedralModel[i] -> remappedMayReads, i);

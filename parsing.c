@@ -36,9 +36,9 @@ isl_stat parse_input(FILE * stream, isl_ctx * optionsHdl, char ** tasks, pet_sco
 		strcat(fileName, tasks[i]);
 		strcat(fileName, sourceExtension);
 		
-#ifdef VERBOSE
-		fprintf(stream, "Parsing file %s\n", fileName);
-#endif
+		#ifdef VERBOSE
+			fprintf(stream, "Parsing file %s\n", fileName);
+		#endif
 		
 		polyhedralModelPtr[i] = pet_scop_extract_from_C_source(optionsHdl, fileName, NULL);
 		
@@ -47,11 +47,11 @@ isl_stat parse_input(FILE * stream, isl_ctx * optionsHdl, char ** tasks, pet_sco
 			return isl_stat_error;
 		}
 		
-#ifdef MOREVERBOSE
-		fprintf(stream, "Polyhedral model:\n");
-		fflush(stream);
-		pet_scop_dump(polyhedralModelPtr[i]);
-#endif
+		#ifdef MOREVERBOSE
+			fprintf(stream, "Polyhedral model:\n");
+			fflush(stream);
+			pet_scop_dump(polyhedralModelPtr[i]);
+		#endif
 		
 		// We replace the parsed schedule with the one read from the modified schedule file
 		free(fileName);
@@ -63,9 +63,9 @@ isl_stat parse_input(FILE * stream, isl_ctx * optionsHdl, char ** tasks, pet_sco
 		strcat(fileName, tasks[i]);
 		strcat(fileName, scheduleExtension);
 		
-#ifdef VERBOSE
-		fprintf(stream, "Reading file %s\n", fileName);
-#endif
+		#ifdef VERBOSE
+			fprintf(stream, "Reading file %s\n", fileName);
+		#endif
 		filePtr = fopen(fileName, "r");
 		
 		if (filePtr == NULL) {
@@ -75,11 +75,11 @@ isl_stat parse_input(FILE * stream, isl_ctx * optionsHdl, char ** tasks, pet_sco
 		
 		polyhedralModelPtr[i] -> schedule = isl_schedule_read_from_file(optionsHdl, filePtr);
 		
-#ifdef MOREVERBOSE
-		fprintf(stream, "Modified polyhedral model:\n");
-		fflush(stream);
-		pet_scop_dump(polyhedralModelPtr[i]);
-#endif
+		#ifdef MOREVERBOSE
+			fprintf(stream, "Modified polyhedral model:\n");
+			fflush(stream);
+			pet_scop_dump(polyhedralModelPtr[i]);
+		#endif
 		
 		// Be clean for the next file
 		fclose(filePtr);
@@ -96,10 +96,10 @@ isl_set *** parse_lattices (FILE * stream, isl_ctx * optionsHdl, unsigned * numL
 	FILE * latticeHdl = NULL;
 	// String for the file name of the lattice
 	char * latticeFileName = NULL;
-#ifdef MOREVERBOSE
-	// Pointer to the printer
-	isl_printer * printer = NULL;
-#endif
+	#ifdef MOREVERBOSE
+		// Pointer to the printer
+		isl_printer * printer = NULL;
+	#endif
 	
 	// First of all, we read the number of different fundamental lattices
 	latticeFileName = malloc (DIMSTRING * sizeof(char));
@@ -124,10 +124,10 @@ isl_set *** parse_lattices (FILE * stream, isl_ctx * optionsHdl, unsigned * numL
 	fscanf(latticeHdl, "Number of different fundamental lattices: ");
 	fscanf(latticeHdl, "%i", numLatticesPtr);
 	
-#ifdef VERBOSE
-	fprintf(stream, "Number of different fundamental lattices: %i\n", *numLatticesPtr);
-	fflush(stream);
-#endif
+	#ifdef VERBOSE
+		fprintf(stream, "Number of different fundamental lattices: %i\n", *numLatticesPtr);
+		fflush(stream);
+	#endif
 	
 	fclose(latticeHdl);
 	free(latticeFileName);
@@ -180,35 +180,35 @@ isl_set *** parse_lattices (FILE * stream, isl_ctx * optionsHdl, unsigned * numL
 				return NULL;
 			}
 			
-#ifdef MOREVERBOSE
-			fprintf(stream, "Translate %i of lattice %i:\n", j, i);
-			fflush(stream);
-			printer = isl_printer_to_file(optionsHdl, stream);
-			
-			if(printer == NULL) {
-				error(stream, "Memory allocation problem :(");
-				return NULL;
-			} 
-			
-			printer = isl_printer_print_set(printer, translatesPtr[i-1][j-1]);
-			
-			if(printer == NULL) {
-				error(stream, "Printing problem :(");
-				return NULL;
-			}
-			
-			fprintf(stream, "\n");
-			fflush(stream);
-#endif
+			#ifdef MOREVERBOSE
+				fprintf(stream, "Translate %i of lattice %i:\n", j, i);
+				fflush(stream);
+				printer = isl_printer_to_file(optionsHdl, stream);
+				
+				if(printer == NULL) {
+					error(stream, "Memory allocation problem :(");
+					return NULL;
+				} 
+				
+				printer = isl_printer_print_set(printer, translatesPtr[i-1][j-1]);
+				
+				if(printer == NULL) {
+					error(stream, "Printing problem :(");
+					return NULL;
+				}
+				
+				fprintf(stream, "\n");
+				fflush(stream);
+			#endif
 			
 			fclose(latticeHdl);
 			free(latticeFileName);
 		}
 		
 	}
-#ifdef MOREVERBOSE
-	isl_printer_free(printer);
-#endif
+	#ifdef MOREVERBOSE
+		isl_printer_free(printer);
+	#endif
 	return translatesPtr;
 }
 

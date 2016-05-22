@@ -5,6 +5,7 @@
 #include<stdlib.h>
 
 #include "model.h"
+#include "config.h"
 
 manipulated_polyhedral_model ** manipulated_polyhedral_model_array_alloc(unsigned numTasks) {
 	// Array to be allocated
@@ -39,4 +40,118 @@ void manipulated_polyhedral_model_array_free(manipulated_polyhedral_model ** arr
 		free(array[i]);
 	
 	free(array);
+}
+
+dataset_type_array * dataset_type_array_alloc() {
+	// Pointer to the newly allocated array
+	dataset_type_array * datasetArray = NULL;
+	
+	datasetArray = (dataset_type_array *)malloc(sizeof(dataset_type_array));
+	
+	if (datasetArray == NULL)
+		return NULL;
+	
+	datasetArray -> datasetArray = NULL;
+	datasetArray -> numTypes = 0;
+	datasetArray -> numTranslates = NUMBANKS;
+	datasetArray -> numProcessors = NUMBANKS;
+	
+	return datasetArray;
+}
+
+isl_bool matrix_compare (unsigned, unsigned, unsigned **, unsigned **);
+void matrix_fprintf(FILE *, unsigned, unsigned, unsigned **);
+
+isl_stat dataset_type_array_add(dataset_type_array * datasetArray, unsigned ** newDatasetTypeInstance) {
+	// Boolean variable for the linear search
+	isl_bool found = isl_bool_false;
+	
+	if (datasetArray -> numTypes == 0) { // dataset type surely not present
+		datasetArray -> numTypes = 1;
+		datasetArray -> datasetArray = (dataset_type **)malloc(sizeof(dataset_type *));
+		
+		if (datasetArray -> datasetArray == NULL)
+			return isl_stat_error;
+
+		datasetArray -> datasetArray[0] = (dataset_type *)malloc(sizeof(dataset_type));
+
+		if (datasetArray -> datasetArray[0] == NULL)
+			return isl_stat_error;
+		
+		datasetArray -> datasetArray[0] -> access = newDatasetTypeInstance;
+		datasetArray -> datasetArray[0] -> n = 1;
+		
+		return isl_stat_ok;
+	}
+	
+	for (int i = 0; i < datasetArray -> numTypes && found == isl_bool_false; i++) {
+		
+		if (matrix_compare(datasetArray -> numTranslates, datasetArray -> numProcessors, 
+			datasetArray -> datasetArray[i] -> access, newDatasetTypeInstance) == isl_bool_true) {
+			datasetArray -> datasetArray[i] -> n = datasetArray -> datasetArray[i] -> n + 1;
+
+			found = isl_bool_true;
+		}
+	}
+	
+	if (found == isl_bool_false) { // add the new type
+		datasetArray -> numTypes = datasetArray -> numTypes + 1;
+		datasetArray -> datasetArray = (dataset_type **)realloc(datasetArray -> datasetArray, (datasetArray -> numTypes) * sizeof(dataset_type *));
+		
+		if (datasetArray -> datasetArray == NULL)
+			return isl_stat_error;
+
+		datasetArray -> datasetArray[datasetArray -> numTypes - 1] = (dataset_type *)malloc(sizeof(dataset_type));
+
+		if (datasetArray -> datasetArray[datasetArray -> numTypes - 1] == NULL)
+			return isl_stat_error;
+		
+		datasetArray -> datasetArray[datasetArray -> numTypes - 1] -> access = newDatasetTypeInstance;
+		datasetArray -> datasetArray[datasetArray -> numTypes - 1] -> n = 1;
+
+		return isl_stat_ok;
+		
+	} 
+
+	return isl_stat_ok;
+	
+}
+
+void dataset_type_array_fprintf(FILE * stream, dataset_type_array * datasetArray) {
+	
+	for (unsigned i = 0; i < datasetArray -> numTypes; i++) {
+		fprintf(stream, "Dataset type %u: \n", i + 1);
+		
+		matrix_fprintf(stream, datasetArray -> numTranslates, datasetArray -> numProcessors, datasetArray -> datasetArray[i] -> access);
+
+		fprintf(stream, "Repetitions of the type: %u\n", datasetArray -> datasetArray[i] -> n);
+	}
+}
+
+void dataset_type_array_free(dataset_type_array * datasetArray) {
+	
+	for (unsigned i = 0; i < datasetArray -> numTypes; i++)
+		free(datasetArray -> datasetArray[i]);
+		
+	free(datasetArray);
+}
+
+isl_bool matrix_compare (unsigned n, unsigned m, unsigned ** A, unsigned ** B) {
+
+	for (unsigned i = 0; i < n; i++)
+		for (unsigned j = 0; j < m; j++)
+			if (A[i][j] != B[i][j])
+				return isl_bool_false;
+	
+	return isl_bool_true;
+}
+
+void matrix_fprintf(FILE * stream, unsigned n, unsigned m, unsigned ** A) {
+	
+	for (unsigned i = 0; i < n; i++) {
+		for (unsigned j = 0; j < m; j++)
+			fprintf(stream, "%u ", A[i][j]);
+			
+			fprintf(stream, "\n");
+		}
 }

@@ -1,9 +1,9 @@
 #ifdef MOREVERBOSE
-#define VERBOSE
+	#define VERBOSE
 #endif
 /*
  * Implementation of the Lattice - Based Memory Mapping Banks Mapping techniquq
- * for the Non Uniform Memory Access time case
+ * for the Non - Uniform Memory Access time case
  */ 
 #include<stdlib.h>
 #include<stdio.h>
@@ -19,15 +19,16 @@
 //#define DIMSTRING 100
 
 const unsigned options = 1;
-const unsigned parallel_phases = 3;
+const unsigned parallel_phases = 2;
 
 typedef struct {
 	phase * phasePtr;
 	FILE * stream;
-	unsigned numTasks;
+	unsigned numProcessors;
+	unsigned numTranslates;
 	manipulated_polyhedral_model ** modifiedPolyhedralModelPtr;
 	isl_set *** translatesPtr;
-	unsigned long * cost;
+	dataset_type_array ** datasetTypesPtr;
 	unsigned numLattices;
 } concurrent_part_params;
 
@@ -42,10 +43,10 @@ int main(int argc, char ** argv) {
 	FILE * outputStreamHdl = NULL;
 	// Handle for the configuration of the isl and pet libraries
 	isl_ctx * optionsHdl = NULL;
-#ifdef VERBOSE
-	// Pointer to the printer
-	isl_printer * printer = NULL;
-#endif
+	#ifdef VERBOSE
+		// Pointer to the printer
+		isl_printer * printer = NULL;
+	#endif
 	// Array of task names
 	char ** tasks = NULL;
 	// Total numbers of tasks to work with
@@ -62,12 +63,8 @@ int main(int argc, char ** argv) {
 	unsigned dimAddressSpace = 0;
 	// Set of all the linearized dates across the concurrent tasks
 	isl_set * linearized_schedule_dates_set = NULL;
-	// Array of cost function values for each fundamental lattice
-	unsigned long * cost = NULL;
-	// Index of the best fundamental lattice
-	unsigned bestLatticeIdx = 0;
-	// Best value of the cost function
-	unsigned long bestCost = 0;
+	// Array of access matrices for each fundamental lattice
+	dataset_type_array ** datasetTypesPtr = NULL;
 	// Parameters for the callback function
 	concurrent_part_params * params = NULL;
 	// Result of a subroutine
@@ -108,12 +105,12 @@ int main(int argc, char ** argv) {
 	}
 	
 	
-#ifdef VERBOSE
-	fprintf(outputStreamHdl, "Overall number of tasks: %d\n", numTasks);
-	fprintf(outputStreamHdl, "Task names:\n");
-	for (int i = 0; i < numTasks; i++)
-		fprintf(outputStreamHdl, "%d)\t%s\n", i, tasks[i]);
-#endif
+	#ifdef VERBOSE
+		fprintf(outputStreamHdl, "Overall number of tasks: %d\n", numTasks);
+		fprintf(outputStreamHdl, "Task names:\n");
+		for (int i = 0; i < numTasks; i++)
+			fprintf(outputStreamHdl, "%d)\t%s\n", i, tasks[i]);
+	#endif
 	
 	// 1b) Now we parse the input sources to get the whole polyhedral model
 	optionsHdl = isl_ctx_alloc_with_pet_options();
@@ -166,6 +163,10 @@ int main(int argc, char ** argv) {
 		error(outputStreamHdl, "Error during parsing lattices :(");
 		abort_phase(outputStreamHdl, phasePtr);
 	}
+
+	#ifdef NOLATTICES
+		numLattices = 5;
+	#endif
 	
 	complete_phase(outputStreamHdl, phasePtr);
 	
@@ -180,8 +181,20 @@ int main(int argc, char ** argv) {
 	}
 	
 	complete_phase(outputStreamHdl, phasePtr);
+
+	// 5) Building the allocation constraint
+	new_phase(outputStreamHdl, phasePtr);
 	
-	// 5) Building the linearized schedule
+	outcome = allocation_constraint(outputStreamHdl, optionsHdl, modifiedPolyhedralModelPtr, numTasks);
+	
+	if (outcome == isl_stat_error) {
+		error(outputStreamHdl, "Error during allocation constraint building");
+		abort_phase(outputStreamHdl, phasePtr);
+	}
+	
+	complete_phase(outputStreamHdl, phasePtr);
+	
+	// 6) Building the linearized schedule
 	new_phase(outputStreamHdl, phasePtr);
 	
 	outcome = eliminate_parameters(outputStreamHdl, polyhedralModelPtr, modifiedPolyhedralModelPtr, numTasks);
@@ -215,27 +228,27 @@ int main(int argc, char ** argv) {
 		abort_phase(outputStreamHdl, phasePtr);
 	}
 	
-#ifdef VERBOSE
-	fprintf(outputStreamHdl, "Unified linearized schedule space:\n");
-	fflush(outputStreamHdl);
-	printer = isl_printer_to_file(optionsHdl, outputStreamHdl);
-	
-	if(printer == NULL) {
-		error(outputStreamHdl, "Memory allocation problem :(");
-		abort_phase(outputStreamHdl, phasePtr);
-	} 
-	
-	printer = isl_printer_print_set(printer, linearized_schedule_dates_set);
-	
-	if(printer == NULL) {
-		error(outputStreamHdl, "Printing problem :(");
-		abort_phase(outputStreamHdl, phasePtr);
-	} 
-	
-	fprintf(outputStreamHdl, "\n");
-	
-	isl_printer_free(printer);
-#endif
+	#ifdef VERBOSE
+		fprintf(outputStreamHdl, "Unified linearized schedule space:\n");
+		fflush(outputStreamHdl);
+		printer = isl_printer_to_file(optionsHdl, outputStreamHdl);
+		
+		if(printer == NULL) {
+			error(outputStreamHdl, "Memory allocation problem :(");
+			abort_phase(outputStreamHdl, phasePtr);
+		} 
+		
+		printer = isl_printer_print_set(printer, linearized_schedule_dates_set);
+		
+		if(printer == NULL) {
+			error(outputStreamHdl, "Printing problem :(");
+			abort_phase(outputStreamHdl, phasePtr);
+		} 
+		
+		fprintf(outputStreamHdl, "\n");
+		
+		isl_printer_free(printer);
+	#endif
 	
 	complete_phase(outputStreamHdl, phasePtr);
 	
@@ -249,19 +262,20 @@ int main(int argc, char ** argv) {
 	
 	params -> phasePtr = phasePtr;
 	params -> stream = outputStreamHdl;
-	params -> numTasks = numTasks;
+	params -> numProcessors = NUMBANKS;
+	params -> numTranslates = NUMBANKS;
 	params -> modifiedPolyhedralModelPtr = modifiedPolyhedralModelPtr;
 	params -> translatesPtr = translatesPtr;
 	params -> numLattices = numLattices;
-	params -> cost = malloc(numLattices * sizeof(unsigned long));
+	params -> datasetTypesPtr = malloc(numLattices * sizeof(dataset_type_array *));
 	
-	if(params -> cost == NULL) {
+	if(params -> datasetTypesPtr == NULL) {
 		error(outputStreamHdl, "Memory allocation problem :(");
 		abort_phase(outputStreamHdl, phasePtr);
 	} 
 	
 	for (int i = 0; i < numLattices; i++)
-		params -> cost[i] = 0;
+		params -> datasetTypesPtr[i] = dataset_type_array_alloc();
 	
 	outcome = isl_set_foreach_point(linearized_schedule_dates_set, concurrent_part, (void *)params);
 	
@@ -272,45 +286,61 @@ int main(int argc, char ** argv) {
 	}
 	
 	phasePtr -> phase_num += parallel_phases;
+
 	// 9) Cost function evaluation
 	new_phase(outputStreamHdl, phasePtr);
 	
-	cost = params -> cost;
+	datasetTypesPtr = params -> datasetTypesPtr;
+
+	for (unsigned i = 0; i < numLattices; i++) {
+		info(outputStreamHdl,"Fundamental lattice %i)", i);
+
+		dataset_type_array_fprintf(outputStreamHdl, datasetTypesPtr[i]);
+	}
+
+	outcome = MLPsolve(NUMBANKS, datasetTypesPtr, numLattices, BANKLATENCY);
+
+		if (outcome == isl_stat_error) {
+		error(outputStreamHdl, "Error during the solving of the MLP model");
+		abort_phase(outputStreamHdl, phasePtr);
+	}
 	
-#ifdef VERBOSE
-	fprintf(outputStreamHdl, "F. lattice #\t Cost function value\n");
-	
-	for (int i = 0; i < numLattices; i++)
-		fprintf(outputStreamHdl, "%u) \t\t %lu\n", i, cost[i]);
-	
-	fflush(outputStreamHdl);
-#endif
-	
-	bestCost = cost[0];
-	bestLatticeIdx = 0;
-	
-#ifdef MOREVERBOSE
-	fprintf(outputStreamHdl, "Cost function value for the fundamental lattice %u: \t %lu\n", 0, cost[0]);
-	fflush(outputStreamHdl);
-#endif
-	
-	for (int i = 1; i < numLattices; i++)
-		if (cost[i] < bestCost) {
-			bestCost = cost[i];
-			bestLatticeIdx = i;
-			
-#ifdef MOREVERBOSE
-			fprintf(outputStreamHdl, "Cost function value for the fundamental lattice %u: \t %lu\n", i, cost[i]);
-			fflush(outputStreamHdl);
-#endif
-		}
+// #ifdef VERBOSE
+// 	fprintf(outputStreamHdl, "F. lattice #\t Cost function value\n");
+// 	
+// 	for (int i = 0; i < numLattices; i++)
+// 		fprintf(outputStreamHdl, "%u) \t\t %lu\n", i, cost[i]);
+// 	
+// 	fflush(outputStreamHdl);
+// #endif
+// 	
+// 	bestCost = cost[0];
+// 	bestLatticeIdx = 0;
+// 	
+// #ifdef MOREVERBOSE
+// 	fprintf(outputStreamHdl, "Cost function value for the fundamental lattice %u: \t %lu\n", 0, cost[0]);
+// 	fflush(outputStreamHdl);
+// #endif
+// 	
+// 	for (int i = 1; i < numLattices; i++)
+// 		if (cost[i] < bestCost) {
+// 			bestCost = cost[i];
+// 			bestLatticeIdx = i;
+// 			
+// #ifdef MOREVERBOSE
+// 			fprintf(outputStreamHdl, "Cost function value for the fundamental lattice %u: \t %lu\n", i, cost[i]);
+// 			fflush(outputStreamHdl);
+// #endif
+// 		}
 	
 	complete_phase(outputStreamHdl, phasePtr);
 	
-	fprintf(outputStreamHdl, "The best allocation is the one corresponding to the lattice number %u\n", bestLatticeIdx);
+//	fprintf(outputStreamHdl, "The best allocation is the one corresponding to the lattice number %u\n", bestLatticeIdx);
 	
 	// Be clean
-	free(cost);
+	for(unsigned i = 0; i <numLattices; i++)
+		dataset_type_array_free(datasetTypesPtr[i]);
+	free(datasetTypesPtr);
 	free(params);
 	manipulated_polyhedral_model_array_free(modifiedPolyhedralModelPtr, numTasks);
 	free(tasks);
@@ -334,10 +364,12 @@ isl_stat concurrent_part(isl_point * pointPtr, void * user) {
 	isl_printer * printer = NULL;
 	// Pointer to the phase of the current point
 	phase phasePoint = *params -> phasePtr;
-	// Pointer to the array of the polyhedral slices
-	isl_union_set ** polyhedralSlicePtr = NULL;
-	// Pointer to the concurrent dataset
-	isl_set * concurrentDatasetPtr = NULL;
+	// Pointer to the array of the instant local slices
+	isl_union_set ** instantLocalSlicePtr = NULL;
+	// Pointer to the array of the instant local dataset
+	isl_set ** instantLocalDatasetPtr = NULL;
+	// Pointer to the access matrix
+	unsigned ** accessMatrix = NULL;
 	// Result of a subroutine
 	isl_stat outcome = isl_stat_ok;
 	
@@ -345,83 +377,104 @@ isl_stat concurrent_part(isl_point * pointPtr, void * user) {
 	
 	printer = isl_printer_to_file(isl_point_get_ctx(pointPtr), params -> stream);
 	
-	// 6) Polyhedral slices building
+	// 7) Instant local slices building
 	new_phase(params -> stream, &(phasePoint));
 	
-	polyhedralSlicePtr = malloc ((params -> numTasks) * sizeof(isl_union_set *));
+	instantLocalSlicePtr = malloc ((params -> numProcessors) * sizeof(isl_union_set *));
 	
-	if (polyhedralSlicePtr == NULL) {
-		error(params -> stream, "Memory allocation problem for the polyhedral slices");
+	if (instantLocalSlicePtr == NULL) {
+		error(params -> stream, "Memory allocation problem for the instant local slices");
 		return isl_stat_error;
 	}
 	
-	for (int i = 0; i < params -> numTasks; i++) {
+	instantLocalDatasetPtr = malloc ((params -> numProcessors) * sizeof(isl_set *));
+	
+	if (instantLocalDatasetPtr == NULL) {
+		error(params -> stream, "Memory allocation problem for the instant local datasets");
+		return isl_stat_error;
+	}
+	
+	for (int i = 0; i < params -> numProcessors; i++) {
 		
-#ifdef MOREVERBOSE
-		info(params -> stream, "Task %d)", i);
-#endif
+		#ifdef MOREVERBOSE
+			info(params -> stream, "Processor %d)", i);
+		#endif
 		
-		polyhedralSlicePtr[i] = polyhedral_slice_build (params -> stream, isl_union_map_copy(params -> modifiedPolyhedralModelPtr[i] -> flattenedSchedule), isl_union_map_copy(params -> modifiedPolyhedralModelPtr[i] -> linearizedSchedule), pointPtr);
+		instantLocalSlicePtr[i] = instant_local_slice_build (
+			params -> stream, 
+			params -> modifiedPolyhedralModelPtr[TASK[i]] -> instanceSet,
+			params -> modifiedPolyhedralModelPtr[TASK[i]] -> flattenedSchedule, 
+			params -> modifiedPolyhedralModelPtr[TASK[i]] -> linearizedSchedule,
+			params -> modifiedPolyhedralModelPtr[TASK[i]] -> allocation,  
+			pointPtr, 
+			i);
 		
-		if (polyhedralSlicePtr[i] == NULL) {
-			error(params -> stream, "Error during polyhedral slices building");
+		if (instantLocalSlicePtr[i] == NULL) {
+			error(params -> stream, "Error during instant local slices building");
 			return isl_stat_error;
 		}
 		
-#ifdef MOREVERBOSE
-		printer = isl_printer_set_indent(printer, moreIndent);
-		fprintf(params -> stream, "Polyhedral slice of task %d:\n", i);
-		printer = isl_printer_print_union_set(printer, polyhedralSlicePtr[i]);
+		#ifdef VERBOSE
+			printer = isl_printer_set_indent(printer, moreIndent);
+			fprintf(params -> stream, "Instant local slice of processor %d:\n", i);
+			printer = isl_printer_print_union_set(printer, instantLocalSlicePtr[i]);
+			
+			if(printer == NULL) {
+				error(params -> stream, "Printing problem :(");
+				return isl_stat_error;
+			} 
+			
+			fprintf(params -> stream, "\n");
+			fflush(params -> stream);
+		#endif
+	}
 		
-		if(printer == NULL) {
-			error(params -> stream, "Printing problem :(");
+	instantLocalDatasetPtr = instant_local_dataset_build(params -> stream, params -> modifiedPolyhedralModelPtr, instantLocalSlicePtr, params -> numProcessors);
+		
+	if (instantLocalDatasetPtr == NULL) {
+		error(params -> stream, "Error during instant local dataset building");
+		return isl_stat_error;
+	}
+	
+	complete_phase(params -> stream, &(phasePoint));
+	
+	// 8) Computation of the parameters needed by the mapping algorithm for the current date
+	new_phase(params -> stream, &(phasePoint));
+	
+	for (unsigned i = 0; i < params -> numLattices; i++) {
+		#ifdef VERBOSE
+			info(params -> stream, "Fundamental lattice %u)", i);
+		#endif
+		
+		accessMatrix = (unsigned **)malloc((params -> numTranslates) * sizeof(unsigned *));
+		
+		if (accessMatrix == NULL) {
+			error(params -> stream, "Memory allocation problem for the access matrix");
 			return isl_stat_error;
-		} 
+		}
+
+		for (unsigned j = 0; j < params -> numTranslates; j++) {
+			// Row - stored matrix. The index i has already been used for the fundamental lattice
+			accessMatrix[j] = (unsigned *)malloc((params -> numProcessors) * sizeof(unsigned));
+
+			if (accessMatrix[j] == NULL) {
+				error(params -> stream, "Memory allocation problem for the access matrix");
+				return isl_stat_error;
+			}
+
+		}
 		
-		fprintf(params -> stream, "\n");
-		fflush(params -> stream);
-#endif
-	}
-		
-	complete_phase(params -> stream, &(phasePoint));
-	
-	// 7) Concurrent dataset building
-	new_phase(params -> stream, &(phasePoint));
-	
-	concurrentDatasetPtr = concurrent_dataset_build(params -> stream, params -> modifiedPolyhedralModelPtr, polyhedralSlicePtr, params -> numTasks);
-	
-	if (concurrentDatasetPtr == NULL) {
-		error(params -> stream, "Error during concurrent dataset building");
-		return isl_stat_error;
-	}
-	
-#ifdef VERBOSE
-	fprintf(params -> stream, "Concurrent dataset:\n");
-	printer = isl_printer_print_set(printer, concurrentDatasetPtr);
-		
-	if(printer == NULL) {
-		error(params -> stream, "Printing problem :(");
-		return isl_stat_error;
-	} 
-	
-	fprintf(params -> stream, "\n");
-	fflush(params -> stream);
-#endif
-	
-	complete_phase(params -> stream, &(phasePoint));
-	
-	// 8) Cost function computation for the current date
-	new_phase(params -> stream, &(phasePoint));
-	
-	for (int i = 0; i < params -> numLattices; i++) {
-#ifdef VERBOSE
-		info(params -> stream, "Fundamental lattice %u)", i);
-#endif
-		
-		outcome = evaluate_fundamental_lattice(params -> stream, concurrentDatasetPtr, params -> translatesPtr[i], &(params -> cost[i]));
+		outcome = access_matrix_fundamental_lattice(params -> stream, instantLocalDatasetPtr, params -> translatesPtr[i], params -> numTranslates, params -> numProcessors, accessMatrix);
 		
 		if (outcome == isl_stat_error) {
 			error(params -> stream, "Error during the evaluation of the cost function");
+			return isl_stat_error;
+		} 
+		
+		outcome = dataset_type_array_add(params -> datasetTypesPtr[i], accessMatrix);
+		
+		if (outcome == isl_stat_error) {
+			error(params -> stream, "Error during dataset types evaluation");
 			return isl_stat_error;
 		} 
 	}

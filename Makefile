@@ -1,13 +1,16 @@
 PROGNAME=numa
-OBJECTS=parsing.o virtual-address-space.o polyhedral-slice.o parameters.o concurrent.o config.o support.o model.o
+OBJECTS=parsing.o virtual-address-space.o polyhedral-slice.o parameters.o concurrent.o mlp.o config.o support.o model.o
 
-all : program
+all: program
 
-program: main parsing virtual-address-space polyhedral-slice parameters concurrent support config model
-	gcc $(PROGNAME).o $(OBJECTS) -l pet -l isl -o $(PROGNAME)
+program: main parsing virtual-address-space polyhedral-slice parameters concurrent mlp support config model
+	gcc $(PROGNAME).o $(OBJECTS) -lpet -lisl -lbarvinok -o $(PROGNAME)
 
 main: $(PROGNAME).c support.h partitioning.h config.h model.h
 	gcc $(CFLAGS) -c $(PROGNAME).c -o $(PROGNAME).o
+
+mlp: mlp.c partitioning.h  config.h model.h
+	gcc $(CFLAGS) -c mlp.c -o mlp.o
 
 parsing: parsing.c partitioning.h config.h support.h
 	gcc $(CFLAGS) -c parsing.c -o parsing.o
@@ -24,7 +27,7 @@ parameters: parameters.c partitioning.h config.h support.h model.h
 concurrent: concurrent.c partitioning.h config.h support.h model.h
 	gcc $(CFLAGS) -c concurrent.c -o concurrent.o
 
-model: model.c model.h
+model: model.c model.h config.h
 	gcc $(CFLAGS) -c model.c -o model.o
 
 config: config.c config.h
