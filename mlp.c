@@ -1,13 +1,21 @@
+#include<glpk.h>
+
 #include "model.h"
 #include "config.h"
+#include "support.h"
 #include "partitioning.h"
 
 #define DIMSTRING 100
 
-const char * MLPRelativePath = "./MLP/";
-const char * dataExtension =  ".dat";
+#define GLP_OK 0
+#define GLP_NO_READ_DATA 1
 
-isl_stat inputMLP (unsigned numBanks, dataset_type_array * datasetTypesPtr, unsigned numLattice, unsigned currentBest, unsigned bankLatency) {
+const char * MLPRelativePath = "./MLP/";
+const char * modelExtension =  ".mod";
+const char * dataExtension =  ".dat";
+const char * logExtension =  ".log";
+
+isl_stat inputMILP (unsigned numBanks, dataset_type_array * datasetTypesPtr, unsigned numLattice, double currentBest, unsigned bankLatency) {
 	// File name with relative path
 	char * fileName = NULL;
 	// Handle to the file to be written
@@ -20,7 +28,6 @@ isl_stat inputMLP (unsigned numBanks, dataset_type_array * datasetTypesPtr, unsi
 
 
 	if (sprintf(fileName, "%s%s%u%s", MLPRelativePath, "lattice", numLattice, dataExtension) < 0)
-//		perror(muoio);
 		return isl_stat_error;
 
 	dataFileHdl = fopen(fileName, "w");
@@ -64,7 +71,7 @@ isl_stat inputMLP (unsigned numBanks, dataset_type_array * datasetTypesPtr, unsi
 	fprintf(dataFileHdl, "\n");
 
 	// Parameters
-	fprintf(dataFileHdl, "param minLatency := %u;\n", currentBest);
+	fprintf(dataFileHdl, "param minLatency := %f;\n", currentBest);
 	
 	if (numLattice > 0)
 		fprintf(dataFileHdl, "param nonFirstLattice := %u;\n", 1);
@@ -105,15 +112,152 @@ isl_stat inputMLP (unsigned numBanks, dataset_type_array * datasetTypesPtr, unsi
 	free(fileName);
 }
 
-isl_stat MLPsolve(unsigned numBanks, dataset_type_array ** datasetTypesPtr, unsigned numLattices, unsigned bankLatency) { 
+/**
+ * Naive programming of the MILP problem solving. Builds the GMPL data file for each fundamental lattice, hence reads the GMPL formulation of the model and the data file just written to solve it.
+ * @param  stream          Stream for the output messages
+ * @param  numBanks        Number of memory banks in the architecture
+ * @param  datasetTypesPtr Array containing, for each fundamental lattice, the array of dataset types
+ * @param  numLattices     Number of different fundamental lattices
+ * @param  bankLatency     Latency of the single memory bank (common for all)
+ * @param  bestLattice     (output) Index of the best fundamental lattice
+ * @return                 isl_stat_ok if no problem occurs, isl_stat_error otherwise
+ */
+isl_stat MILPsolve(FILE * stream, unsigned numBanks, dataset_type_array ** datasetTypesPtr, unsigned numLattices, unsigned bankLatency, unsigned * bestLattice) { 
+	// Current best value of the cost function
+	double currentBest = 0;
+	// Result of a GLPK routine
+	int glp_outcome = -1;
+	// File name with relative path
+	char * fileName = NULL;
+	// Pointer to the workspace of the translator
+	glp_tran * ws = NULL;
+	// Pointer to the MILP problem model
+	glp_prob * milp = NULL;
 	// Result of a subroutine
 	isl_stat outcome = isl_stat_error;
 
 	for (unsigned i = 0; i < numLattices; i++) {
-		outcome = inputMLP(numBanks, datasetTypesPtr[i], i, 0, bankLatency);
+		#ifdef VERBOSE
+			info(stream, "Fundamental lattice %u)", i);
+		#endif
+
+		// Building the data file
+		outcome = inputMILP(numBanks, datasetTypesPtr[i], i, currentBest, bankLatency);
 
 		if (outcome == isl_stat_error)
 			return isl_stat_error;
+
+		// Allocating the problem object
+		milp = glp_create_prob();
+
+		if (milp == NULL)
+			return isl_stat_error;
+
+		// Allocating the workspace for the translator
+		ws = glp_mpl_alloc_wksp();
+
+		if (ws == NULL)
+			return isl_stat_error;
+
+		// Reading the model section from the model file
+		fileName = malloc(DIMSTRING * sizeof(char));
+
+		if (fileName == NULL)
+			return isl_stat_error;
+
+		if (sprintf(fileName, "%s%s%s", MLPRelativePath, "model", modelExtension) < 0)
+			return isl_stat_error;
+
+		glp_outcome = glp_mpl_read_model(ws, fileName, GLP_NO_READ_DATA);
+
+		if (glp_outcome != GLP_OK)
+			return isl_stat_error;
+
+		free(fileName);
+
+		// Reading the data section from the data file just written
+		fileName = malloc(DIMSTRING * sizeof(char));
+
+		if (fileName == NULL)
+			return isl_stat_error;
+
+		if (sprintf(fileName, "%s%s%u%s", MLPRelativePath, "lattice", i, dataExtension) < 0)
+			return isl_stat_error;
+
+		glp_outcome = glp_mpl_read_data(ws, fileName);
+
+		if (glp_outcome != GLP_OK)
+			return isl_stat_error;
+		
+		free(fileName);
+
+		// Generate the internal model of the translator
+		fileName = malloc(DIMSTRING * sizeof(char));
+
+		if (fileName == NULL)
+			return isl_stat_error;
+
+		// We choose to have a different file for the output of the 
+		if (sprintf(fileName, "%s%s%u%s", MLPRelativePath, "MLPlog", i, logExtension) < 0)
+			return isl_stat_error;
+
+		glp_outcome = glp_mpl_generate(ws, fileName);
+
+		if (glp_outcome != GLP_OK)
+			return isl_stat_error;
+
+		free(fileName);
+
+		// Building the problem object from the translator
+		glp_mpl_build_prob(ws, milp);
+		
+		// Solving the model
+		glp_outcome = glp_simplex(milp, NULL); // LP relaxation
+
+		if (glp_outcome != GLP_OK)
+			return isl_stat_error;
+
+		if (glp_get_status(milp) == GLP_OPT) {
+			glp_intopt(milp, NULL); // branch - and - cut
+			
+			// Retrieving the optimal solution	
+			if (glp_mip_status(milp) == GLP_OPT) {
+				currentBest = glp_mip_obj_val(milp) - 1;
+				*bestLattice = i;
+
+				#ifdef VERBOSE
+					info(stream, "Fundamental lattice %u is the new current best lattice", i);
+					} else {
+
+						if (glp_mip_status(milp) == GLP_NOFEAS)
+							fprintf(stream, "No integer feasible solution\n");
+						else if (glp_mip_status(milp) == GLP_FEAS)
+							error(stream, "Integer feasible solution, but too much time to prove optimality\n");
+						else if (glp_mip_status(milp) == GLP_UNDEF)
+							warning(stream, "Undefined solution");
+
+				#endif
+			} // closing bracket of the internal if statement (related to the branch - and - cut) when VERBOSE is undefined
+			#ifdef VERBOSE
+				} else {
+
+					if (glp_get_status(milp) == GLP_FEAS)
+						warning(stream, "The solution of the LP relaxation is feasible");
+					else if (glp_get_status(milp) == GLP_INFEAS)
+						warning(stream, "The solution of the LP relaxation is infeasible");
+					else if (glp_get_status(milp) == GLP_NOFEAS)
+						warning(stream, "The LP relaxation has no feasible solution");
+					else if (glp_get_status(milp) == GLP_UNBND)
+						warning(stream, "The LP relaxation has unbounded solution");
+					else if (glp_get_status(milp) == GLP_UNDEF)
+						warning(stream, "The LP relaxation has no defined solution");
+
+			#endif
+		} // closing bracket of the external if statement (related to the LP relaxation) when VERBOSE is undefined
+
+		// Be clean
+		glp_mpl_free_wksp(ws);
+		glp_delete_prob(milp);
 	}
 
 	return isl_stat_ok;

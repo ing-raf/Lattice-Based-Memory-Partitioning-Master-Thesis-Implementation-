@@ -4,12 +4,12 @@ OBJECTS=parsing.o virtual-address-space.o polyhedral-slice.o parameters.o concur
 all: program
 
 program: main parsing virtual-address-space polyhedral-slice parameters concurrent mlp support config model
-	gcc $(PROGNAME).o $(OBJECTS) -lpet -lisl -lbarvinok -o $(PROGNAME)
+	gcc $(PROGNAME).o $(OBJECTS) -lpet -lisl -lbarvinok -lglpk -o $(PROGNAME)
 
 main: $(PROGNAME).c support.h partitioning.h config.h model.h
 	gcc $(CFLAGS) -c $(PROGNAME).c -o $(PROGNAME).o
 
-mlp: mlp.c partitioning.h  config.h model.h
+mlp: mlp.c partitioning.h config.h model.h support.h
 	gcc $(CFLAGS) -c mlp.c -o mlp.o
 
 parsing: parsing.c partitioning.h config.h support.h

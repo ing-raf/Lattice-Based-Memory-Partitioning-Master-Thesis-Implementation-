@@ -25,6 +25,6 @@ isl_set * concurrent_dataset_build (FILE *, manipulated_polyhedral_model **, isl
 isl_set ** instant_local_dataset_build (FILE *, manipulated_polyhedral_model **, isl_union_set **, unsigned);
 isl_stat evaluate_fundamental_lattice (FILE *, isl_set *, isl_set **, unsigned long *);
 isl_stat access_matrix_fundamental_lattice (FILE *, isl_set **, isl_set **, unsigned, unsigned, unsigned **);
-isl_stat MLPsolve(unsigned, dataset_type_array **, unsigned, unsigned); 
+isl_stat MILPsolve(FILE *, unsigned, dataset_type_array **, unsigned, unsigned, unsigned *); 
 
 #endif /* PARTITIONING_H_ */

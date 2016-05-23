@@ -16,7 +16,7 @@ const char * phaseNames[] = {
 	"Concurrent dates computation",
 	"Instant local slice building",
 	"Mapping parameters computation",
-	"Mapping parameters printing"
+	"Solution space evaluation"
 };
 
 phase * start (FILE * stream) {

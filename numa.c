@@ -16,7 +16,7 @@
 #include "model.h"
 #include "partitioning.h"
 
-//#define DIMSTRING 100
+#define REDUCED_LATTICES 60
 
 const unsigned options = 1;
 const unsigned parallel_phases = 2;
@@ -65,6 +65,8 @@ int main(int argc, char ** argv) {
 	isl_set * linearized_schedule_dates_set = NULL;
 	// Array of access matrices for each fundamental lattice
 	dataset_type_array ** datasetTypesPtr = NULL;
+	// Index of the best fundamental lattice
+	unsigned bestLatticeIdx = 0;
 	// Parameters for the callback function
 	concurrent_part_params * params = NULL;
 	// Result of a subroutine
@@ -165,7 +167,7 @@ int main(int argc, char ** argv) {
 	}
 
 	#ifdef NOLATTICES
-		numLattices = 5;
+		numLattices = REDUCED_LATTICES;
 	#endif
 	
 	complete_phase(outputStreamHdl, phasePtr);
@@ -298,44 +300,16 @@ int main(int argc, char ** argv) {
 		dataset_type_array_fprintf(outputStreamHdl, datasetTypesPtr[i]);
 	}
 
-	outcome = MLPsolve(NUMBANKS, datasetTypesPtr, numLattices, BANKLATENCY);
+	outcome = MILPsolve(outputStreamHdl, NUMBANKS, datasetTypesPtr, numLattices, BANKLATENCY, &bestLatticeIdx);
 
 		if (outcome == isl_stat_error) {
-		error(outputStreamHdl, "Error during the solving of the MLP model");
+		error(outputStreamHdl, "Error during the solving of the MILP model");
 		abort_phase(outputStreamHdl, phasePtr);
 	}
 	
-// #ifdef VERBOSE
-// 	fprintf(outputStreamHdl, "F. lattice #\t Cost function value\n");
-// 	
-// 	for (int i = 0; i < numLattices; i++)
-// 		fprintf(outputStreamHdl, "%u) \t\t %lu\n", i, cost[i]);
-// 	
-// 	fflush(outputStreamHdl);
-// #endif
-// 	
-// 	bestCost = cost[0];
-// 	bestLatticeIdx = 0;
-// 	
-// #ifdef MOREVERBOSE
-// 	fprintf(outputStreamHdl, "Cost function value for the fundamental lattice %u: \t %lu\n", 0, cost[0]);
-// 	fflush(outputStreamHdl);
-// #endif
-// 	
-// 	for (int i = 1; i < numLattices; i++)
-// 		if (cost[i] < bestCost) {
-// 			bestCost = cost[i];
-// 			bestLatticeIdx = i;
-// 			
-// #ifdef MOREVERBOSE
-// 			fprintf(outputStreamHdl, "Cost function value for the fundamental lattice %u: \t %lu\n", i, cost[i]);
-// 			fflush(outputStreamHdl);
-// #endif
-// 		}
-	
 	complete_phase(outputStreamHdl, phasePtr);
 	
-//	fprintf(outputStreamHdl, "The best allocation is the one corresponding to the lattice number %u\n", bestLatticeIdx);
+	fprintf(outputStreamHdl, "The best allocation is the one corresponding to the lattice number %u\n", bestLatticeIdx);
 	
 	// Be clean
 	for(unsigned i = 0; i <numLattices; i++)
