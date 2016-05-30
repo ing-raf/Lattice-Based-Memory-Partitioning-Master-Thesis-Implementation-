@@ -30,6 +30,12 @@ isl_stat parse_input(FILE * stream, isl_ctx * optionsHdl, char ** tasks, pet_sco
 	
 	for (int i = 0; i < numTasks; i++) {
 		fileName = malloc(DIMSTRING * sizeof(char));
+
+		if (fileName == NULL) {
+			error(stream, "Memory allocation problem with the source file name :(");
+			return isl_stat_error;
+		}
+
 		fileName[0] = '\0';
 		
 		strcat(fileName, sourceRelativePath);
@@ -57,6 +63,12 @@ isl_stat parse_input(FILE * stream, isl_ctx * optionsHdl, char ** tasks, pet_sco
 		free(fileName);
 		
 		fileName = malloc(DIMSTRING * sizeof(char));
+
+		if (fileName == NULL) {
+			error(stream, "Memory allocation problem with the schedule file name :(");
+			return isl_stat_error;
+		}
+
 		fileName[0] = '\0';
 		
 		strcat(fileName, scheduleRelativePath);
@@ -105,7 +117,7 @@ isl_set *** parse_lattices (FILE * stream, isl_ctx * optionsHdl, unsigned * numL
 	latticeFileName = malloc (DIMSTRING * sizeof(char));
 	
 	if (latticeFileName == NULL) {
-		error(stream, "Memory allocation problem :(");
+		error(stream, "Memory allocation problem  with the lattice file name :(");
 		return NULL;
 	}
 	

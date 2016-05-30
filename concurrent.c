@@ -1,3 +1,9 @@
+#ifdef BARVINOK_ON
+	#ifndef MOREVERBOSE
+		#define MOREVERBOSE
+	#endif
+#endif
+
 #ifdef MOREVERBOSE
 	#define VERBOSE
 #endif

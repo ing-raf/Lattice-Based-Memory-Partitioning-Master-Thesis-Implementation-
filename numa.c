@@ -17,6 +17,7 @@
 #include "partitioning.h"
 
 #define REDUCED_LATTICES 60
+#define DIMSTRING 100
 
 const unsigned options = 1;
 const unsigned parallel_phases = 2;
@@ -67,6 +68,8 @@ int main(int argc, char ** argv) {
 	dataset_type_array ** datasetTypesPtr = NULL;
 	// Index of the best fundamental lattice
 	unsigned bestLatticeIdx = 0;
+	// String with the result of the computation
+	char * result = NULL;
 	// Parameters for the callback function
 	concurrent_part_params * params = NULL;
 	// Result of a subroutine
@@ -294,24 +297,41 @@ int main(int argc, char ** argv) {
 	
 	datasetTypesPtr = params -> datasetTypesPtr;
 
-	for (unsigned i = 0; i < numLattices; i++) {
-		info(outputStreamHdl,"Fundamental lattice %i)", i);
+	#ifdef MOREVERBOSE
+		for (unsigned i = 0; i < numLattices; i++) {
+			info(outputStreamHdl,"Fundamental lattice %i)", i);
 
-		dataset_type_array_fprintf(outputStreamHdl, datasetTypesPtr[i]);
-	}
+			dataset_type_array_fprintf(outputStreamHdl, datasetTypesPtr[i]);
+		}
+	#endif
 
 	outcome = MILPsolve(outputStreamHdl, NUMBANKS, datasetTypesPtr, numLattices, BANKLATENCY, &bestLatticeIdx);
 
-		if (outcome == isl_stat_error) {
+	if (outcome == isl_stat_error) {
 		error(outputStreamHdl, "Error during the solving of the MILP model");
 		abort_phase(outputStreamHdl, phasePtr);
 	}
 	
 	complete_phase(outputStreamHdl, phasePtr);
 	
-	fprintf(outputStreamHdl, "The best allocation is the one corresponding to the lattice number %u\n", bestLatticeIdx);
+	result = (char *)malloc(DIMSTRING * sizeof(char));
+
+	if (result == NULL) {
+		error(outputStreamHdl, "Memory allocation problem with the result string :(");
+		abort_phase(outputStreamHdl, phasePtr);
+	}
+
+	result[0] = '\0';
+
+	if (sprintf(result, "The best allocation is the one corresponding to the lattice number %u", bestLatticeIdx) < 0) {
+		error(outputStreamHdl, "Problem during writing the result string :(");
+		abort_phase(outputStreamHdl, phasePtr);
+	}
+
+	news(outputStreamHdl, result);
 	
 	// Be clean
+	free(result);
 	for(unsigned i = 0; i <numLattices; i++)
 		dataset_type_array_free(datasetTypesPtr[i]);
 	free(datasetTypesPtr);
@@ -416,7 +436,7 @@ isl_stat concurrent_part(isl_point * pointPtr, void * user) {
 	new_phase(params -> stream, &(phasePoint));
 	
 	for (unsigned i = 0; i < params -> numLattices; i++) {
-		#ifdef VERBOSE
+		#ifdef MOREVERBOSE
 			info(params -> stream, "Fundamental lattice %u)", i);
 		#endif
 		

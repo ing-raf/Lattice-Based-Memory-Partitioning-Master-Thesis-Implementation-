@@ -86,6 +86,16 @@ void warning (FILE * stream, const char * message) {
 	
 } 
 
+void news (FILE * stream, const char * message) {
+	
+	__SET_GREEN
+	fprintf(stream, "%s", message);
+	__SET_DEFAULT
+	fprintf(stream, "\n");
+	fflush(stream);
+	
+} 
+
 void info (FILE * stream, const char * message, int num) {
 	
 	__SET_BLUE

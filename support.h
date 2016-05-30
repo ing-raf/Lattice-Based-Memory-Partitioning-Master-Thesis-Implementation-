@@ -18,6 +18,7 @@ void complete_phase(FILE *, phase *);
 void abort_phase(FILE *, phase *);
 void error(FILE *, const char *);
 void warning(FILE *, const char *);
+void news(FILE *, const char *);
 void info(FILE *, const char *, int);
 void finish(FILE *, phase *);
 

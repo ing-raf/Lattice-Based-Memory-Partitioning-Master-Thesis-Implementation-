@@ -1,3 +1,7 @@
+#ifdef MOREVERBOSE
+	#define VERBOSE
+#endif
+
 #include<glpk.h>
 
 #include "model.h"
@@ -13,7 +17,12 @@
 const char * MLPRelativePath = "./MLP/";
 const char * modelExtension =  ".mod";
 const char * dataExtension =  ".dat";
-const char * logExtension =  ".log";
+
+int redirectStream (void * stream, const char * string) {
+	FILE * output = (void *)stream;
+	fputs(string, output);
+	return 1;
+}
 
 isl_stat inputMILP (unsigned numBanks, dataset_type_array * datasetTypesPtr, unsigned numLattice, double currentBest, unsigned bankLatency) {
 	// File name with relative path
@@ -133,6 +142,10 @@ isl_stat MILPsolve(FILE * stream, unsigned numBanks, dataset_type_array ** datas
 	glp_tran * ws = NULL;
 	// Pointer to the MILP problem model
 	glp_prob * milp = NULL;
+	// Pointer to the control parameters structure of the LP solver
+	glp_smcp * simplexParams = NULL;
+	// Pointer to the control parameters structure of the MILP solver
+	glp_iocp * intParams = NULL;
 	// Result of a subroutine
 	isl_stat outcome = isl_stat_error;
 
@@ -146,6 +159,12 @@ isl_stat MILPsolve(FILE * stream, unsigned numBanks, dataset_type_array ** datas
 
 		if (outcome == isl_stat_error)
 			return isl_stat_error;
+
+		#ifdef MOREVERBOSE
+			glp_term_hook(redirectStream, (void *)stream); // starts the output redirection
+		#else
+			glp_term_out(GLP_OFF);
+		#endif
 
 		// Allocating the problem object
 		milp = glp_create_prob();
@@ -191,42 +210,56 @@ isl_stat MILPsolve(FILE * stream, unsigned numBanks, dataset_type_array ** datas
 		
 		free(fileName);
 
-		// Generate the internal model of the translator
-		fileName = malloc(DIMSTRING * sizeof(char));
-
-		if (fileName == NULL)
-			return isl_stat_error;
-
-		// We choose to have a different file for the output of the 
-		if (sprintf(fileName, "%s%s%u%s", MLPRelativePath, "MLPlog", i, logExtension) < 0)
-			return isl_stat_error;
-
-		glp_outcome = glp_mpl_generate(ws, fileName);
+		glp_outcome = glp_mpl_generate(ws, NULL);
 
 		if (glp_outcome != GLP_OK)
 			return isl_stat_error;
-
-		free(fileName);
 
 		// Building the problem object from the translator
 		glp_mpl_build_prob(ws, milp);
 		
 		// Solving the model
-		glp_outcome = glp_simplex(milp, NULL); // LP relaxation
+		simplexParams = (glp_smcp *) malloc(sizeof(glp_smcp));
+
+		if (simplexParams == NULL)
+			return isl_stat_error;
+
+		glp_init_smcp(simplexParams);
+
+		// Disable terminal output
+		#ifndef MOREVERBOSE
+			simplexParams -> msg_lev = GLP_MSG_OFF;
+		#endif
+
+ 		// LP relaxation
+		glp_outcome = glp_simplex(milp, simplexParams);
 
 		if (glp_outcome != GLP_OK)
 			return isl_stat_error;
 
 		if (glp_get_status(milp) == GLP_OPT) {
-			glp_intopt(milp, NULL); // branch - and - cut
-			
+			intParams = (glp_iocp *) malloc(sizeof(glp_iocp));
+
+			if (intParams == NULL)
+				return isl_stat_error;
+
+			glp_init_iocp(intParams);
+
+			// Disable terminal output
+			#ifndef MOREVERBOSE
+				intParams -> msg_lev = GLP_MSG_OFF;
+			#endif
+
+			// Branch - and - cut
+			glp_intopt(milp, intParams);
+
 			// Retrieving the optimal solution	
 			if (glp_mip_status(milp) == GLP_OPT) {
 				currentBest = glp_mip_obj_val(milp) - 1;
 				*bestLattice = i;
 
 				#ifdef VERBOSE
-					info(stream, "Fundamental lattice %u is the new current best lattice", i);
+					news(stream, "New current best lattice");
 					} else {
 
 						if (glp_mip_status(milp) == GLP_NOFEAS)
@@ -255,7 +288,12 @@ isl_stat MILPsolve(FILE * stream, unsigned numBanks, dataset_type_array ** datas
 			#endif
 		} // closing bracket of the external if statement (related to the LP relaxation) when VERBOSE is undefined
 
+		#ifdef MOREVERBOSE
+			glp_term_hook(NULL, NULL); // stops the output redirection
+		#endif
 		// Be clean
+		free(intParams);
+		free(simplexParams);
 		glp_mpl_free_wksp(ws);
 		glp_delete_prob(milp);
 	}
