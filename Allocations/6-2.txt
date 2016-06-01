@@ -1,0 +1,4 @@
+Number of working processors: 8
+Number of executing tasks: 2
+Task ID executing on each processor:
+0 0 0 0 0 0 1 1 

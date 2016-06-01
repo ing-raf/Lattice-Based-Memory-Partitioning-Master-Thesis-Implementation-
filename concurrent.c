@@ -350,7 +350,7 @@ isl_set * concurrent_dataset_build (FILE * stream, manipulated_polyhedral_model 
 	return isl_set_coalesce(currentDatasetPtr);
 }
 
-isl_set ** instant_local_dataset_build (FILE * stream, manipulated_polyhedral_model ** modifiedPolyhedralModelPtr, isl_union_set ** instantLocalSlicePtr, unsigned numProcessors) {
+isl_set ** instant_local_dataset_build (FILE * stream, manipulated_polyhedral_model ** modifiedPolyhedralModelPtr, isl_union_set ** instantLocalSlicePtr, unsigned * taskOnProcessor, unsigned numProcessors) {
 	// Array of the datasets of each processor
 	isl_set ** datasetPtr = NULL;
 	// Pointer to a part of the dataset of the current processor
@@ -372,29 +372,29 @@ isl_set ** instant_local_dataset_build (FILE * stream, manipulated_polyhedral_mo
 		#ifdef MOREVERBOSE
 			info(stream, "Processor %d)", i);
 		#endif
-		datasetPtr[i] = isl_set_empty(isl_set_get_space(isl_set_from_union_set(isl_union_map_range(isl_union_map_copy(modifiedPolyhedralModelPtr[TASK[i]] -> remappedMayReads)))));
+		datasetPtr[i] = isl_set_empty(isl_set_get_space(isl_set_from_union_set(isl_union_map_range(isl_union_map_copy(modifiedPolyhedralModelPtr[taskOnProcessor[i]] -> remappedMayReads)))));
 		
 		if (datasetPtr[i] == NULL) {
 			error(stream, "Memory allocation problem for the dataset :(");
 			return NULL;
 		} 
 		
-		if (isl_union_map_is_empty(modifiedPolyhedralModelPtr[TASK[i]] -> remappedMayReads) == isl_bool_false) {
-			partialDatasetPtr = isl_union_set_apply(isl_union_set_copy(instantLocalSlicePtr[i]), isl_union_map_copy(modifiedPolyhedralModelPtr[TASK[i]] -> remappedMayReads));
+		if (isl_union_map_is_empty(modifiedPolyhedralModelPtr[taskOnProcessor[i]] -> remappedMayReads) == isl_bool_false) {
+			partialDatasetPtr = isl_union_set_apply(isl_union_set_copy(instantLocalSlicePtr[i]), isl_union_map_copy(modifiedPolyhedralModelPtr[taskOnProcessor[i]] -> remappedMayReads));
 			
 			if (isl_union_set_is_empty(partialDatasetPtr) == isl_bool_false)
 				datasetPtr[i] = isl_set_union(datasetPtr[i], isl_set_from_union_set(partialDatasetPtr));
 		}
 		
-		if (isl_union_map_is_empty(modifiedPolyhedralModelPtr[TASK[i]] -> remappedMayWrites) == isl_bool_false) {
-			partialDatasetPtr = isl_union_set_apply(isl_union_set_copy(instantLocalSlicePtr[i]), isl_union_map_copy(modifiedPolyhedralModelPtr[TASK[i]] -> remappedMayWrites));
+		if (isl_union_map_is_empty(modifiedPolyhedralModelPtr[taskOnProcessor[i]] -> remappedMayWrites) == isl_bool_false) {
+			partialDatasetPtr = isl_union_set_apply(isl_union_set_copy(instantLocalSlicePtr[i]), isl_union_map_copy(modifiedPolyhedralModelPtr[taskOnProcessor[i]] -> remappedMayWrites));
 			
 			if (isl_union_set_is_empty(partialDatasetPtr) == isl_bool_false)
 				datasetPtr[i] = isl_set_union(datasetPtr[i], isl_set_from_union_set(partialDatasetPtr));
 		}
 		
-		if (isl_union_map_is_empty(modifiedPolyhedralModelPtr[TASK[i]] -> remappedMustWrites) == isl_bool_false) {
-			partialDatasetPtr = isl_union_set_apply(isl_union_set_copy(instantLocalSlicePtr[i]), isl_union_map_copy(modifiedPolyhedralModelPtr[TASK[i]] -> remappedMustWrites));
+		if (isl_union_map_is_empty(modifiedPolyhedralModelPtr[taskOnProcessor[i]] -> remappedMustWrites) == isl_bool_false) {
+			partialDatasetPtr = isl_union_set_apply(isl_union_set_copy(instantLocalSlicePtr[i]), isl_union_map_copy(modifiedPolyhedralModelPtr[taskOnProcessor[i]] -> remappedMustWrites));
 			
 			if (isl_union_set_is_empty(partialDatasetPtr) == isl_bool_false)
 				datasetPtr[i] = isl_set_union(datasetPtr[i], isl_set_from_union_set(partialDatasetPtr));

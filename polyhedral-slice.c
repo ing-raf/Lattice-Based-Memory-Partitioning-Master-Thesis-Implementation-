@@ -23,7 +23,7 @@ typedef struct {
 isl_bool findOutermostParallel (isl_schedule_node *, void *);
 isl_stat extend_date (isl_point *, void *);
 
-isl_stat physical_schedule (FILE * stream, isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model ** modifiedPolyhedralModelPtr, unsigned numTasks) {
+isl_stat physical_schedule (FILE * stream, isl_ctx * optionsHdl, pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model ** modifiedPolyhedralModelPtr, unsigned numTasks, unsigned * n) {
 	// Dimensionality of the domain of the schedule of the current task
 	unsigned scheduleDim = 0;
 	// Depth of the parallel dimension of the current task
@@ -152,7 +152,7 @@ isl_stat physical_schedule (FILE * stream, isl_ctx * optionsHdl, pet_scop ** pol
 			fprintf(stream, "\n");
 		#endif
 		
-		physicalScheduleDimensionPtr = isl_aff_set_coefficient_val(physicalScheduleDimensionPtr, isl_dim_in, parallelIteratorPos, isl_val_inv(isl_val_int_from_si(optionsHdl, N[i])));
+		physicalScheduleDimensionPtr = isl_aff_set_coefficient_val(physicalScheduleDimensionPtr, isl_dim_in, parallelIteratorPos, isl_val_inv(isl_val_int_from_si(optionsHdl, n[i])));
 		physicalScheduleDimensionPtr = isl_aff_floor(physicalScheduleDimensionPtr);
 		
 		#ifdef MOREVERBOSE
@@ -203,7 +203,7 @@ isl_stat physical_schedule (FILE * stream, isl_ctx * optionsHdl, pet_scop ** pol
 	return isl_stat_ok;
 }
 
-isl_stat allocation_constraint (FILE * stream, isl_ctx * optionsHdl, manipulated_polyhedral_model ** modifiedPolyhedralModelPtr, unsigned numTasks) {
+isl_stat allocation_constraint (FILE * stream, isl_ctx * optionsHdl, manipulated_polyhedral_model ** modifiedPolyhedralModelPtr, unsigned numTasks, unsigned * n) {
 	// Dimensionality of the domain of the schedule of the current task
 	unsigned scheduleDim = 0;
 	#ifdef VERBOSE
@@ -314,7 +314,7 @@ isl_stat allocation_constraint (FILE * stream, isl_ctx * optionsHdl, manipulated
 		if (spaceTimeDimensionPtr == NULL)
 			return isl_stat_error;
 		
-		spaceTimeDimensionPtr = isl_aff_mod_val(spaceTimeDimensionPtr, isl_val_int_from_si(optionsHdl, N[i]));
+		spaceTimeDimensionPtr = isl_aff_mod_val(spaceTimeDimensionPtr, isl_val_int_from_si(optionsHdl, n[i]));
 
 		if (spaceTimeDimensionPtr == NULL)
 			return isl_stat_error;
@@ -546,8 +546,9 @@ isl_union_set * instant_local_slice_build (FILE * stream, isl_union_set * instan
 	if(processorPointPtr == NULL)
 		return NULL;
 
+	// Base processor accounting has been translated to the caller
 	// To account for the base processor
-	processorPointPtr = isl_point_sub_ui(processorPointPtr, isl_dim_set, 0, OFFSET[TASK[processor]]);
+	// processorPointPtr = isl_point_sub_ui(processorPointPtr, isl_dim_set, 0, OFFSET[TASK[processor]]);
 
 	// Parameter 1 of iisl_union_set_from_point is annotated __isl_take
 	processorSetPtr = isl_union_set_from_point(processorPointPtr);
@@ -682,8 +683,9 @@ isl_stat extend_date (isl_point * schedulePointPtr, void * user){
 	// Here we exploit the fact that the point has been allocated with all 0s
 	extendedPointPtr = isl_point_add_ui(extendedPointPtr, isl_dim_set, scheduleDim, params -> p);
 
+	// Base processor accounting has been translated to the caller
 	// To account for the base processor
-	extendedPointPtr = isl_point_sub_ui(extendedPointPtr, isl_dim_set, scheduleDim, OFFSET[TASK[params -> p]]);
+	// extendedPointPtr = isl_point_sub_ui(extendedPointPtr, isl_dim_set, scheduleDim, OFFSET[TASK[params -> p]]);
 
 	if (extendedPointPtr == NULL)
 		return isl_stat_error;

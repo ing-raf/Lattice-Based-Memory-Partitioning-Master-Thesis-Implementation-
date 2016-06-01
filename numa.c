@@ -19,16 +19,20 @@
 #define REDUCED_LATTICES 60
 #define DIMSTRING 100
 
-#define OUTPUT_FILE argv[1]
-#define ARCHITECTURE_FILE argv[2]
+#define OUTPUT_FILE 		argv[1]
+#define ARCHITECTURE_FILE 	argv[2]
+#define ALLOCATION_FILE 	argv[3]
 
-const unsigned config_input = 2;
+
+const unsigned config_input = 3;
 const unsigned parallel_phases = 2;
 
 typedef struct {
 	phase * phasePtr;
 	FILE * stream;
 	unsigned numProcessors;
+	unsigned * taskOffset;
+	unsigned * taskOnProcessor;
 	unsigned numTranslates;
 	manipulated_polyhedral_model ** modifiedPolyhedralModelPtr;
 	isl_set *** translatesPtr;
@@ -53,16 +57,22 @@ int main(int argc, char ** argv) {
 	unsigned * bankLatency = NULL;
 	// Array of delay incurred by a specific processor accessing a specific memory bank
 	unsigned ** processorToBankDelay = NULL;
+	// Total numbers of tasks to work with
+	unsigned numTasks = 0;
+	// Array containing the task ID of the task executing on each processor
+	unsigned * taskOnProcessor = NULL;
+	// Array of processor offset for each task
+	unsigned * taskOffset = NULL;
+	// Array containint the number of processors allocated to each task
+	unsigned * n = NULL;
+	// Array of task names
+	char ** tasks = NULL;
 	// Handle for the configuration of the isl and pet libraries
 	isl_ctx * optionsHdl = NULL;
 	#ifdef VERBOSE
 		// Pointer to the printer
 		isl_printer * printer = NULL;
 	#endif
-	// Array of task names
-	char ** tasks = NULL;
-	// Total numbers of tasks to work with
-	unsigned numTasks = 0;
 	// Array of the original polyhedral models of each task
 	pet_scop ** polyhedralModelPtr = NULL;
 	// Array of the lattices
@@ -117,16 +127,22 @@ int main(int argc, char ** argv) {
 		abort_phase(outputStreamHdl, phasePtr);
 	}
 	
-	numTasks = argc - config_input - 1;
-	
+	numTasks = argc - config_input - 1; // -1 to account for the program name
+
+	outcome = parse_processors_allocation(outputStreamHdl, ALLOCATION_FILE, &numProcessors, numTasks, &taskOnProcessor, &taskOffset, &n);
+
+	if (outcome == isl_stat_error) {
+		error(outputStreamHdl, "Error during parsing the allocation file");
+		abort_phase(outputStreamHdl, phasePtr);
+	}
+
 	tasks = parse_task_names(numTasks, argv);
 	
 	if (tasks == NULL) {
 		fprintf(outputStreamHdl, "Memory allocation problem :(");
 		abort_phase(outputStreamHdl, phasePtr);
 	}
-	
-	
+		
 	#ifdef VERBOSE
 		fprintf(outputStreamHdl, "Overall number of tasks: %d\n", numTasks);
 		fprintf(outputStreamHdl, "Task names:\n");
@@ -157,7 +173,6 @@ int main(int argc, char ** argv) {
 	}
 	
 	complete_phase(outputStreamHdl, phasePtr);
-	
 	
 	// 2) Virtual memory allocation 
 	new_phase(outputStreamHdl, phasePtr);
@@ -195,7 +210,7 @@ int main(int argc, char ** argv) {
 	// 4) Building the physical schedule
 	new_phase(outputStreamHdl, phasePtr);
 	
-	outcome = physical_schedule(outputStreamHdl, optionsHdl, polyhedralModelPtr, modifiedPolyhedralModelPtr, numTasks);
+	outcome = physical_schedule(outputStreamHdl, optionsHdl, polyhedralModelPtr, modifiedPolyhedralModelPtr, numTasks, n);
 	
 	if (outcome == isl_stat_error) {
 		error(outputStreamHdl, "Error during physical schedule building");
@@ -207,7 +222,7 @@ int main(int argc, char ** argv) {
 	// 5) Building the allocation constraint
 	new_phase(outputStreamHdl, phasePtr);
 	
-	outcome = allocation_constraint(outputStreamHdl, optionsHdl, modifiedPolyhedralModelPtr, numTasks);
+	outcome = allocation_constraint(outputStreamHdl, optionsHdl, modifiedPolyhedralModelPtr, numTasks, n);
 	
 	if (outcome == isl_stat_error) {
 		error(outputStreamHdl, "Error during allocation constraint building");
@@ -285,6 +300,8 @@ int main(int argc, char ** argv) {
 	params -> phasePtr = phasePtr;
 	params -> stream = outputStreamHdl;
 	params -> numProcessors = numProcessors;
+	params -> taskOffset = taskOffset;
+	params -> taskOnProcessor = taskOnProcessor;
 	params -> numTranslates = numBanks;
 	params -> modifiedPolyhedralModelPtr = modifiedPolyhedralModelPtr;
 	params -> translatesPtr = translatesPtr;
@@ -351,11 +368,16 @@ int main(int argc, char ** argv) {
 	
 	// Be clean
 	free(result);
-	for(unsigned i = 0; i <numLattices; i++)
+	for(unsigned i = 0; i < numLattices; i++)
 		dataset_type_array_free(datasetTypesPtr[i]);
 	free(datasetTypesPtr);
 	free(params);
 	manipulated_polyhedral_model_array_free(modifiedPolyhedralModelPtr, numTasks);
+	free(n);
+	free(taskOffset);
+	free(taskOnProcessor);
+	free(processorToBankDelay);
+	free(bankLatency);
 	free(tasks);
 	finish(outputStreamHdl, phasePtr);
 }
@@ -415,12 +437,12 @@ isl_stat concurrent_part(isl_point * pointPtr, void * user) {
 		
 		instantLocalSlicePtr[i] = instant_local_slice_build (
 			params -> stream, 
-			params -> modifiedPolyhedralModelPtr[TASK[i]] -> instanceSet,
-			params -> modifiedPolyhedralModelPtr[TASK[i]] -> flattenedSchedule, 
-			params -> modifiedPolyhedralModelPtr[TASK[i]] -> linearizedSchedule,
-			params -> modifiedPolyhedralModelPtr[TASK[i]] -> allocation,  
+			params -> modifiedPolyhedralModelPtr[params -> taskOnProcessor[i]] -> instanceSet,
+			params -> modifiedPolyhedralModelPtr[params -> taskOnProcessor[i]] -> flattenedSchedule, 
+			params -> modifiedPolyhedralModelPtr[params -> taskOnProcessor[i]] -> linearizedSchedule,
+			params -> modifiedPolyhedralModelPtr[params -> taskOnProcessor[i]] -> allocation,  
 			pointPtr, 
-			i);
+			i - params -> taskOffset[params -> taskOnProcessor[i]]);
 		
 		if (instantLocalSlicePtr[i] == NULL) {
 			error(params -> stream, "Error during instant local slices building");
@@ -442,7 +464,7 @@ isl_stat concurrent_part(isl_point * pointPtr, void * user) {
 		#endif
 	}
 		
-	instantLocalDatasetPtr = instant_local_dataset_build(params -> stream, params -> modifiedPolyhedralModelPtr, instantLocalSlicePtr, params -> numProcessors);
+	instantLocalDatasetPtr = instant_local_dataset_build(params -> stream, params -> modifiedPolyhedralModelPtr, instantLocalSlicePtr, params -> taskOnProcessor, params -> numProcessors);
 		
 	if (instantLocalDatasetPtr == NULL) {
 		error(params -> stream, "Error during instant local dataset building");
