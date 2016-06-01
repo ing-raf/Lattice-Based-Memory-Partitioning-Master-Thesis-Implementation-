@@ -1,10 +1,12 @@
 PROGNAME=numa
 OBJECTS=parsing.o virtual-address-space.o polyhedral-slice.o parameters.o concurrent.o mlp.o config.o support.o model.o
+LIBS=-lpet -lisl -lbarvinok -lglpk
+SYSLIBS=-lntl -lpolylibgmp -lgmp -lstdc++ -lm
 
 all: program
 
 program: main parsing virtual-address-space polyhedral-slice parameters concurrent mlp support config model
-	gcc $(PROGNAME).o $(OBJECTS) -lpet -lisl -lbarvinok -lglpk -o $(PROGNAME)
+	gcc $(PROGNAME).o $(OBJECTS) $(LIBS) $(SYSLIBS) -o $(PROGNAME)
 
 main: $(PROGNAME).c support.h partitioning.h config.h model.h
 	gcc $(CFLAGS) -c $(PROGNAME).c -o $(PROGNAME).o

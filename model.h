@@ -34,7 +34,7 @@ typedef struct {
 manipulated_polyhedral_model ** manipulated_polyhedral_model_array_alloc(unsigned);
 void manipulated_polyhedral_model_array_free(manipulated_polyhedral_model ** , unsigned);
 
-dataset_type_array * dataset_type_array_alloc();
+dataset_type_array * dataset_type_array_alloc(unsigned, unsigned);
 isl_stat dataset_type_array_add(dataset_type_array *, unsigned **);
 void dataset_type_array_fprintf(FILE *, dataset_type_array *);
 void dataset_type_array_free(dataset_type_array *);

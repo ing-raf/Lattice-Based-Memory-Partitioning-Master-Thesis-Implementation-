@@ -24,7 +24,7 @@ int redirectStream (void * stream, const char * string) {
 	return 1;
 }
 
-isl_stat inputMILP (unsigned numBanks, dataset_type_array * datasetTypesPtr, unsigned numLattice, double currentBest, unsigned bankLatency) {
+isl_stat inputMILP (unsigned numBanks, dataset_type_array * datasetTypesPtr, unsigned numLattice, double currentBest, unsigned bankLatency, unsigned ** delta) {
 	// File name with relative path
 	char * fileName = NULL;
 	// Handle to the file to be written
@@ -95,7 +95,7 @@ isl_stat inputMILP (unsigned numBanks, dataset_type_array * datasetTypesPtr, uns
 
 	for (unsigned p = 0; p < datasetTypesPtr -> numProcessors; p++) 
 		for (unsigned b = 0; b < numBanks; b++)
-			fprintf(dataFileHdl, "\tp%u\tb%u\t%u\n", p, b, DELTAS[p][b]);
+			fprintf(dataFileHdl, "\tp%u\tb%u\t%u\n", p, b, delta[p][b]);
 
 	fprintf(dataFileHdl, ";\n\n");	
 
@@ -131,7 +131,7 @@ isl_stat inputMILP (unsigned numBanks, dataset_type_array * datasetTypesPtr, uns
  * @param  bestLattice     (output) Index of the best fundamental lattice
  * @return                 isl_stat_ok if no problem occurs, isl_stat_error otherwise
  */
-isl_stat MILPsolve(FILE * stream, unsigned numBanks, dataset_type_array ** datasetTypesPtr, unsigned numLattices, unsigned bankLatency, unsigned * bestLattice) { 
+isl_stat MILPsolve(FILE * stream, unsigned numBanks, dataset_type_array ** datasetTypesPtr, unsigned numLattices, unsigned bankLatency, unsigned * bestLattice, unsigned ** delta) { 
 	// Current best value of the cost function
 	double currentBest = 0;
 	// Result of a GLPK routine
@@ -155,7 +155,7 @@ isl_stat MILPsolve(FILE * stream, unsigned numBanks, dataset_type_array ** datas
 		#endif
 
 		// Building the data file
-		outcome = inputMILP(numBanks, datasetTypesPtr[i], i, currentBest, bankLatency);
+		outcome = inputMILP(numBanks, datasetTypesPtr[i], i, currentBest, bankLatency, delta);
 
 		if (outcome == isl_stat_error)
 			return isl_stat_error;

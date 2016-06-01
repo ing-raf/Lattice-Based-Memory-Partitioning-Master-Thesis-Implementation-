@@ -19,7 +19,10 @@
 #define REDUCED_LATTICES 60
 #define DIMSTRING 100
 
-const unsigned options = 1;
+#define OUTPUT_FILE argv[1]
+#define ARCHITECTURE_FILE argv[2]
+
+const unsigned config_input = 2;
 const unsigned parallel_phases = 2;
 
 typedef struct {
@@ -33,7 +36,7 @@ typedef struct {
 	unsigned numLattices;
 } concurrent_part_params;
 
-char ** validate_input(int, char**);
+char ** parse_task_names(int, char**);
 isl_stat concurrent_part(isl_point *, void *);
 
 // Note that when an array lasts in Ptr, its elements are pointers
@@ -42,6 +45,14 @@ int main(int argc, char ** argv) {
 	phase * phasePtr = NULL;
 	// Handle to the output stream
 	FILE * outputStreamHdl = NULL;
+	// Number of processors in the architecture
+	unsigned numProcessors = 0;
+	// Number of memory banks in the architecture
+	unsigned numBanks = 0;
+	// Array of service latencies of each memory bank
+	unsigned * bankLatency = NULL;
+	// Array of delay incurred by a specific processor accessing a specific memory bank
+	unsigned ** processorToBankDelay = NULL;
 	// Handle for the configuration of the isl and pet libraries
 	isl_ctx * optionsHdl = NULL;
 	#ifdef VERBOSE
@@ -76,33 +87,39 @@ int main(int argc, char ** argv) {
 	isl_stat outcome = isl_stat_ok;
 	
 	// 1a) We check if the user passed some sources to work with 
-	if (argc <= options + 1) {
+	if (argc <= config_input + 1) {
 		perror("Not enough input file(s)");
 		exit(1);
 	}
 	
-	
 	if (strcmp(argv[1], "stdout") == 0)
 		outputStreamHdl = stdout;
 	else {
-		outputStreamHdl = fopen(argv[1],"w");
+		outputStreamHdl = fopen(OUTPUT_FILE,"w");
 		
 		if (outputStreamHdl == NULL) {
 			perror("Cannot create the output file");
 			exit(1);
 		}
 	}
-	
+
 	phasePtr = start(outputStreamHdl);
 	
 	if (phasePtr == NULL) {
 		error(outputStreamHdl, "Memory allocation problem :(");
 		abort_phase(outputStreamHdl, phasePtr);
 	}
+
+	outcome = parse_architecture(outputStreamHdl, ARCHITECTURE_FILE, &numProcessors, &numBanks, &bankLatency, &processorToBankDelay);
+
+	if (outcome == isl_stat_error) {
+		error(outputStreamHdl, "Error during parsing the architecture file");
+		abort_phase(outputStreamHdl, phasePtr);
+	}
 	
-	numTasks = argc - options - 1;
+	numTasks = argc - config_input - 1;
 	
-	tasks = validate_input(numTasks, argv);
+	tasks = parse_task_names(numTasks, argv);
 	
 	if (tasks == NULL) {
 		fprintf(outputStreamHdl, "Memory allocation problem :(");
@@ -162,7 +179,7 @@ int main(int argc, char ** argv) {
 	// 3) Reading the lattices with all the translates
 	new_phase(outputStreamHdl, phasePtr);
 	
-	translatesPtr = parse_lattices(outputStreamHdl, optionsHdl, &numLattices, dimAddressSpace);
+	translatesPtr = parse_lattices(outputStreamHdl, optionsHdl, &numLattices, numBanks, dimAddressSpace);
 	
 	if (translatesPtr == NULL) {
 		error(outputStreamHdl, "Error during parsing lattices :(");
@@ -267,8 +284,8 @@ int main(int argc, char ** argv) {
 	
 	params -> phasePtr = phasePtr;
 	params -> stream = outputStreamHdl;
-	params -> numProcessors = NUMBANKS;
-	params -> numTranslates = NUMBANKS;
+	params -> numProcessors = numProcessors;
+	params -> numTranslates = numBanks;
 	params -> modifiedPolyhedralModelPtr = modifiedPolyhedralModelPtr;
 	params -> translatesPtr = translatesPtr;
 	params -> numLattices = numLattices;
@@ -280,7 +297,7 @@ int main(int argc, char ** argv) {
 	} 
 	
 	for (int i = 0; i < numLattices; i++)
-		params -> datasetTypesPtr[i] = dataset_type_array_alloc();
+		params -> datasetTypesPtr[i] = dataset_type_array_alloc(numBanks, numProcessors);
 	
 	outcome = isl_set_foreach_point(linearized_schedule_dates_set, concurrent_part, (void *)params);
 	
@@ -305,7 +322,9 @@ int main(int argc, char ** argv) {
 		}
 	#endif
 
-	outcome = MILPsolve(outputStreamHdl, NUMBANKS, datasetTypesPtr, numLattices, BANKLATENCY, &bestLatticeIdx);
+	warning(outputStreamHdl, "Different bank latencies are currently unsupported. Latencies other than the first bank will be ignored");
+
+	outcome = MILPsolve(outputStreamHdl, numBanks, datasetTypesPtr, numLattices, bankLatency[0], &bestLatticeIdx, processorToBankDelay);
 
 	if (outcome == isl_stat_error) {
 		error(outputStreamHdl, "Error during the solving of the MILP model");
@@ -341,12 +360,12 @@ int main(int argc, char ** argv) {
 	finish(outputStreamHdl, phasePtr);
 }
 
-char ** validate_input(int n, char ** argv) {
+char ** parse_task_names(int n, char ** argv) {
 	
 	char ** names = malloc(n * sizeof(char *));
 	
 	for (int i = 0; i < n; i++)
-		names[i] = argv[i+options+1];
+		names[i] = argv[i+config_input+1];
 	
 	return names;
 }

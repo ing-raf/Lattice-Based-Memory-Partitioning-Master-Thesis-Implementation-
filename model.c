@@ -42,7 +42,7 @@ void manipulated_polyhedral_model_array_free(manipulated_polyhedral_model ** arr
 	free(array);
 }
 
-dataset_type_array * dataset_type_array_alloc() {
+dataset_type_array * dataset_type_array_alloc(unsigned numTranslates, unsigned numProcessors) {
 	// Pointer to the newly allocated array
 	dataset_type_array * datasetArray = NULL;
 	
@@ -53,8 +53,8 @@ dataset_type_array * dataset_type_array_alloc() {
 	
 	datasetArray -> datasetArray = NULL;
 	datasetArray -> numTypes = 0;
-	datasetArray -> numTranslates = NUMBANKS;
-	datasetArray -> numProcessors = NUMBANKS;
+	datasetArray -> numTranslates = numTranslates;
+	datasetArray -> numProcessors = numProcessors;
 	
 	return datasetArray;
 }

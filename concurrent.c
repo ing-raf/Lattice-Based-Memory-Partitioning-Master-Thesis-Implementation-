@@ -439,7 +439,7 @@ isl_set ** instant_local_dataset_build (FILE * stream, manipulated_polyhedral_mo
 	return datasetPtr;
 }
 
-isl_stat evaluate_fundamental_lattice (FILE * stream, isl_set * concurrentDatasetPtr, isl_set ** translatesPtr, unsigned long * costPtr) {
+isl_stat evaluate_fundamental_lattice (FILE * stream, isl_set * concurrentDatasetPtr, isl_set ** translatesPtr, unsigned numTranslates, unsigned long * costPtr) {
 	// Pointer to the Z - polyhedron to be evaluated
 	isl_set * zPolyhedron = NULL;
 	// Maximum number of memory conflicts count for the current fundamental lattice
@@ -454,7 +454,7 @@ isl_stat evaluate_fundamental_lattice (FILE * stream, isl_set * concurrentDatase
 	#endif
 	
 	
-	for (int i = 0; i < NUMBANKS; i++) {
+	for (unsigned i = 0; i < numTranslates; i++) {
 		zPolyhedron = isl_set_intersect(isl_set_copy(concurrentDatasetPtr), isl_set_copy(translatesPtr[i]));
 		
 		if (zPolyhedron == NULL) {
@@ -463,7 +463,7 @@ isl_stat evaluate_fundamental_lattice (FILE * stream, isl_set * concurrentDatase
 		}
 		
 		#ifdef MOREVERBOSE
-			fprintf(stream, "Z - polyhedron of the points in the translate %i:\n", i);
+			fprintf(stream, "Z - polyhedron of the points in the translate %u:\n", i);
 			
 			printer = isl_printer_to_file(isl_set_get_ctx(concurrentDatasetPtr), stream);
 			
