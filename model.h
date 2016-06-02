@@ -7,6 +7,11 @@
 #include <isl/union_set.h>
 #include <isl/union_map.h>
 
+ typedef struct {
+ 	unsigned numParameters;
+ 	int * values;
+ } parameters;
+
 typedef struct {
 	unsigned parallelIteratorPos;
 	isl_union_set * instanceSet;
@@ -30,6 +35,9 @@ typedef struct {
 	unsigned numProcessors;
 } dataset_type_array;
 
+parameters ** parameters_array_alloc(unsigned);
+isl_stat parameters_array_insert(parameters **, unsigned, unsigned, unsigned *);
+void parameters_array_free(parameters **, unsigned);
 
 manipulated_polyhedral_model ** manipulated_polyhedral_model_array_alloc(unsigned);
 void manipulated_polyhedral_model_array_free(manipulated_polyhedral_model ** , unsigned);

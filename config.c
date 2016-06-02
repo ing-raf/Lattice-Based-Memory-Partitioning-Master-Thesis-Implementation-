@@ -9,11 +9,12 @@
 const int moreIndent = NUMSPACES;
 const int lessIndent = -NUMSPACES;
 
-const unsigned MAXTASKS = 2; 
-const unsigned N[] = {
-	6,
-	2,
-};
+// const unsigned MAXTASKS = 2; 
+// const unsigned N[] = {
+// 	6,
+// 	2,
+// };
+
 const unsigned NUMPARAMS[] = {
 	2,
 	2,
@@ -26,21 +27,21 @@ const unsigned PARAMS[2][2] = {
 
 // const unsigned NUMBANKS = 8;
 
-const unsigned TASK[] = {
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	1,
-	1,
-};
+// const unsigned TASK[] = {
+// 	0,
+// 	0,
+// 	0,
+// 	0,
+// 	0,
+// 	0,
+// 	1,
+// 	1,
+// };
 
-const unsigned OFFSET[] = {
-	0,
-	6,
-};
+// const unsigned OFFSET[] = {
+// 	0,
+// 	6,
+// };
 
 // const unsigned BANKLATENCY = 1;
 

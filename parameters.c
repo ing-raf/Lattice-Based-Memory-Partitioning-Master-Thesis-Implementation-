@@ -21,29 +21,34 @@ typedef struct {
 		isl_union_map * umap;
 		isl_union_set * uset;
 	} bounded;
-	unsigned taskNum;
+	parameters * taskParamsPtr;
+//	unsigned taskNum;
 #ifdef MOREVERBOSE
 	isl_printer * printer;
 #endif
 } add_parameter_constraint_params;
 
 #ifndef MOREVERBOSE
-isl_union_map * eliminate_parameters_map(isl_union_map *, unsigned);
-isl_union_set * eliminate_parameters_set(isl_union_set *, unsigned);
+isl_union_map * eliminate_parameters_map(isl_union_map *, parameters *);
+isl_union_set * eliminate_parameters_set(isl_union_set *, parameters *);
 #else
-isl_union_map * eliminate_parameters_map(isl_printer *, isl_union_map *, unsigned);
-isl_union_set * eliminate_parameters_set(isl_printer *, isl_union_set *, unsigned);
+isl_union_map * eliminate_parameters_map(isl_printer *, isl_union_map *, parameters *);
+isl_union_set * eliminate_parameters_set(isl_printer *, isl_union_set *, parameters *);
 #endif
 isl_stat add_parameter_constraint_map (isl_map *, void *);
 isl_stat add_parameter_constraint_set (isl_set *, void *);
 
-isl_stat eliminate_parameters (FILE * stream, pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model ** modifiedPolyhedralModel, unsigned numTasks) {
-	
+isl_stat eliminate_parameters (FILE * stream, char ** taskNames, char ** paramFileNames, pet_scop ** polyhedralModelPtr, manipulated_polyhedral_model ** modifiedPolyhedralModel, unsigned numTasks) {
+	// Array of parameters information for each task
+	parameters ** parametersArray = NULL;
 #ifdef MOREVERBOSE
 	// Pointer to the printer
 	isl_printer * printer = NULL;
 #endif
 	
+	if (parse_parameters(taskNames, paramFileNames, numTasks, &parametersArray) == isl_stat_error)
+		return isl_stat_error;
+
 	for (int i = 0; i < numTasks; i++) {
 #ifdef MOREVERBOSE
 		info(stream, "Task %d)", i);
@@ -59,9 +64,9 @@ isl_stat eliminate_parameters (FILE * stream, pet_scop ** polyhedralModelPtr, ma
 #endif
 		
 #ifndef MOREVERBOSE
-		modifiedPolyhedralModel[i] -> instanceSet = eliminate_parameters_set(pet_scop_get_instance_set(polyhedralModelPtr[i]), i);
+		modifiedPolyhedralModel[i] -> instanceSet = eliminate_parameters_set(pet_scop_get_instance_set(polyhedralModelPtr[i]), parametersArray[i]);
 #else
-		modifiedPolyhedralModel[i] -> instanceSet = eliminate_parameters_set(printer, pet_scop_get_instance_set(polyhedralModelPtr[i]), i);
+		modifiedPolyhedralModel[i] -> instanceSet = eliminate_parameters_set(printer, pet_scop_get_instance_set(polyhedralModelPtr[i]), parametersArray[i]);
 #endif
 		
 		if (modifiedPolyhedralModel[i] -> instanceSet == NULL)
@@ -81,9 +86,9 @@ isl_stat eliminate_parameters (FILE * stream, pet_scop ** polyhedralModelPtr, ma
 #endif
 		
 #ifndef MOREVERBOSE
-		modifiedPolyhedralModel[i] -> flattenedSchedule = eliminate_parameters_map (modifiedPolyhedralModel[i] -> flattenedSchedule, i);
+		modifiedPolyhedralModel[i] -> flattenedSchedule = eliminate_parameters_map (modifiedPolyhedralModel[i] -> flattenedSchedule, parametersArray[i]);
 #else
-		modifiedPolyhedralModel[i] -> flattenedSchedule = eliminate_parameters_map (printer, modifiedPolyhedralModel[i] -> flattenedSchedule, i);
+		modifiedPolyhedralModel[i] -> flattenedSchedule = eliminate_parameters_map (printer, modifiedPolyhedralModel[i] -> flattenedSchedule, parametersArray[i]);
 #endif
 		
 		if (modifiedPolyhedralModel[i] -> flattenedSchedule == NULL)
@@ -103,9 +108,9 @@ isl_stat eliminate_parameters (FILE * stream, pet_scop ** polyhedralModelPtr, ma
 #endif
 
 #ifndef MOREVERBOSE
-		modifiedPolyhedralModel[i] -> allocation = eliminate_parameters_map (modifiedPolyhedralModel[i] -> allocation, i);
+		modifiedPolyhedralModel[i] -> allocation = eliminate_parameters_map (modifiedPolyhedralModel[i] -> allocation, parametersArray[i]);
 #else
-		modifiedPolyhedralModel[i] -> allocation = eliminate_parameters_map (printer, modifiedPolyhedralModel[i] -> allocation, i);
+		modifiedPolyhedralModel[i] -> allocation = eliminate_parameters_map (printer, modifiedPolyhedralModel[i] -> allocation, parametersArray[i]);
 #endif
 		
 		if (modifiedPolyhedralModel[i] -> allocation == NULL)
@@ -125,9 +130,9 @@ isl_stat eliminate_parameters (FILE * stream, pet_scop ** polyhedralModelPtr, ma
 #endif
 		
 #ifndef MOREVERBOSE
-		modifiedPolyhedralModel[i] -> remappedMayReads = eliminate_parameters_map (modifiedPolyhedralModel[i] -> remappedMayReads, i);
+		modifiedPolyhedralModel[i] -> remappedMayReads = eliminate_parameters_map (modifiedPolyhedralModel[i] -> remappedMayReads, parametersArray[i]);
 #else
-		modifiedPolyhedralModel[i] -> remappedMayReads = eliminate_parameters_map (printer, modifiedPolyhedralModel[i] -> remappedMayReads, i);
+		modifiedPolyhedralModel[i] -> remappedMayReads = eliminate_parameters_map (printer, modifiedPolyhedralModel[i] -> remappedMayReads, parametersArray[i]);
 #endif
 		
 		if (modifiedPolyhedralModel[i] -> remappedMayReads == NULL)
@@ -147,9 +152,9 @@ isl_stat eliminate_parameters (FILE * stream, pet_scop ** polyhedralModelPtr, ma
 #endif
 		
 #ifndef MOREVERBOSE
-		modifiedPolyhedralModel[i] -> remappedMayWrites = eliminate_parameters_map (modifiedPolyhedralModel[i] -> remappedMayWrites, i);
+		modifiedPolyhedralModel[i] -> remappedMayWrites = eliminate_parameters_map (modifiedPolyhedralModel[i] -> remappedMayWrites, parametersArray[i]);
 #else
-		modifiedPolyhedralModel[i] -> remappedMayWrites = eliminate_parameters_map (printer, modifiedPolyhedralModel[i] -> remappedMayWrites, i);
+		modifiedPolyhedralModel[i] -> remappedMayWrites = eliminate_parameters_map (printer, modifiedPolyhedralModel[i] -> remappedMayWrites, parametersArray[i]);
 #endif
 		
 		if (modifiedPolyhedralModel[i] -> remappedMayWrites == NULL)
@@ -169,9 +174,9 @@ isl_stat eliminate_parameters (FILE * stream, pet_scop ** polyhedralModelPtr, ma
 #endif
 		
 #ifndef MOREVERBOSE
-		modifiedPolyhedralModel[i] -> remappedMustWrites = eliminate_parameters_map (modifiedPolyhedralModel[i] -> remappedMustWrites, i);
+		modifiedPolyhedralModel[i] -> remappedMustWrites = eliminate_parameters_map (modifiedPolyhedralModel[i] -> remappedMustWrites, parametersArray[i]);
 #else
-		modifiedPolyhedralModel[i] -> remappedMustWrites = eliminate_parameters_map (printer, modifiedPolyhedralModel[i] -> remappedMustWrites, i);
+		modifiedPolyhedralModel[i] -> remappedMustWrites = eliminate_parameters_map (printer, modifiedPolyhedralModel[i] -> remappedMustWrites, parametersArray[i]);
 #endif
 		
 		if (modifiedPolyhedralModel[i] -> remappedMustWrites == NULL)
@@ -194,14 +199,17 @@ isl_stat eliminate_parameters (FILE * stream, pet_scop ** polyhedralModelPtr, ma
 	
 	}
 	
+	// Be clean
+	parameters_array_free(parametersArray, numTasks);
+
 	return isl_stat_ok;
 	
 }
 
 #ifndef MOREVERBOSE
-isl_union_map * eliminate_parameters_map(isl_union_map * umap, unsigned taskNum) {
+isl_union_map * eliminate_parameters_map(isl_union_map * umap, parameters * taskParamsPtr) {
 #else
-isl_union_map * eliminate_parameters_map(isl_printer * printer, isl_union_map * umap, unsigned taskNum) {
+isl_union_map * eliminate_parameters_map(isl_printer * printer, isl_union_map * umap, parameters * taskParamsPtr) {
 	// Handle to the output stream
 	FILE * stream = NULL;
 #endif
@@ -219,7 +227,7 @@ isl_union_map * eliminate_parameters_map(isl_printer * printer, isl_union_map * 
 	
 	// Initialization of the parameters
 	params -> bounded.umap = NULL;
-	params -> taskNum = taskNum;	
+	params -> taskParamsPtr = taskParamsPtr;
 #ifdef MOREVERBOSE
 	params -> printer = printer; 
 #endif
@@ -284,7 +292,7 @@ isl_stat add_parameter_constraint_map (isl_map * map, void * user) {
 	if (localSpacePtr == NULL)
 		return isl_stat_error;
 	
-	for (int i = 0; i < NUMPARAMS[params -> taskNum]; i++) {
+	for (int i = 0; i < params -> taskParamsPtr -> numParameters; i++) {
 	
 		parameterConstraintPtr = isl_constraint_alloc_equality(isl_local_space_copy(localSpacePtr));
 		
@@ -292,11 +300,11 @@ isl_stat add_parameter_constraint_map (isl_map * map, void * user) {
 			return isl_stat_error;
 		
 		parameterConstraintPtr = isl_constraint_set_coefficient_si(parameterConstraintPtr, isl_dim_param, i, 1);
-		parameterConstraintPtr = isl_constraint_set_constant_si(parameterConstraintPtr, -PARAMS[params -> taskNum][i]);
+		parameterConstraintPtr = isl_constraint_set_constant_si(parameterConstraintPtr, -(params -> taskParamsPtr -> values[i]));
 		map = isl_map_add_constraint(map, parameterConstraintPtr);
 	}
 	
-	map = isl_map_project_out(map, isl_dim_param, 0, NUMPARAMS[params -> taskNum]);
+	map = isl_map_project_out(map, isl_dim_param, 0, params -> taskParamsPtr -> numParameters);
 	
 #ifdef MOREVERBOSE
 	fprintf(stream, "Map bounded:\n");
@@ -322,9 +330,9 @@ isl_stat add_parameter_constraint_map (isl_map * map, void * user) {
 }
 
 #ifndef MOREVERBOSE
-isl_union_set * eliminate_parameters_set(isl_union_set * uset, unsigned taskNum) {
+isl_union_set * eliminate_parameters_set(isl_union_set * uset, parameters * taskParamsPtr) {
 #else
-isl_union_set * eliminate_parameters_set(isl_printer * printer, isl_union_set * uset, unsigned taskNum) {
+isl_union_set * eliminate_parameters_set(isl_printer * printer, isl_union_set * uset, parameters * taskParamsPtr) {
 	// Handle to the output stream
 	FILE * stream = NULL;
 #endif
@@ -342,8 +350,7 @@ isl_union_set * eliminate_parameters_set(isl_printer * printer, isl_union_set * 
 	
 	// Initialization of the parameters
 	params -> bounded.uset = NULL;
-	params -> taskNum = taskNum;
-	
+	params -> taskParamsPtr = taskParamsPtr;
 #ifdef MOREVERBOSE
 	params -> printer = printer;
 #endif
@@ -410,7 +417,7 @@ isl_stat add_parameter_constraint_set (isl_set * set, void * user) {
 	if (localSpacePtr == NULL)
 		return isl_stat_error;
 	
-	for (int i = 0; i < NUMPARAMS[params -> taskNum]; i++) {
+	for (int i = 0; i < params -> taskParamsPtr -> numParameters; i++) {
 	
 		parameterConstraintPtr = isl_constraint_alloc_equality(isl_local_space_copy(localSpacePtr));
 		
@@ -418,11 +425,11 @@ isl_stat add_parameter_constraint_set (isl_set * set, void * user) {
 			return isl_stat_error;
 		
 		parameterConstraintPtr = isl_constraint_set_coefficient_si(parameterConstraintPtr, isl_dim_param, i, 1);
-		parameterConstraintPtr = isl_constraint_set_constant_si(parameterConstraintPtr, -PARAMS[params -> taskNum][i]);
+		parameterConstraintPtr = isl_constraint_set_constant_si(parameterConstraintPtr, -(params -> taskParamsPtr -> values[i]));
 		set = isl_set_add_constraint(set, parameterConstraintPtr);
 	}
 	
-	set = isl_set_project_out(set, isl_dim_param, 0, NUMPARAMS[params -> taskNum]);
+	set = isl_set_project_out(set, isl_dim_param, 0, params -> taskParamsPtr -> numParameters);
 	
 #ifdef MOREVERBOSE
 	fprintf(stream, "Set bounded:\n");

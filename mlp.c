@@ -128,7 +128,7 @@ isl_stat inputMILP (unsigned numBanks, dataset_type_array * datasetTypesPtr, uns
  * @param  datasetTypesPtr Array containing, for each fundamental lattice, the array of dataset types
  * @param  numLattices     Number of different fundamental lattices
  * @param  bankLatency     Latency of the single memory bank (common for all)
- * @param  bestLattice     (output) Index of the best fundamental lattice
+ * @param  bestLattice     [out] Index of the best fundamental lattice
  * @return                 isl_stat_ok if no problem occurs, isl_stat_error otherwise
  */
 isl_stat MILPsolve(FILE * stream, unsigned numBanks, dataset_type_array ** datasetTypesPtr, unsigned numLattices, unsigned bankLatency, unsigned * bestLattice, unsigned ** delta) { 

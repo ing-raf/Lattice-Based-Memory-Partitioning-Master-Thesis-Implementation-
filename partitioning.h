@@ -18,7 +18,8 @@ isl_stat virtual_allocation (FILE *, isl_ctx *, pet_scop **, manipulated_polyhed
 isl_set *** parse_lattices (FILE *, isl_ctx *, unsigned *, unsigned, unsigned); 
 isl_stat physical_schedule (FILE *, isl_ctx *, pet_scop **, manipulated_polyhedral_model **, unsigned, unsigned *);
 isl_stat allocation_constraint (FILE *, isl_ctx *, manipulated_polyhedral_model **, unsigned, unsigned *);
-isl_stat eliminate_parameters (FILE *, pet_scop **, manipulated_polyhedral_model **, unsigned);
+isl_stat eliminate_parameters (FILE *, char **, char **, pet_scop **, manipulated_polyhedral_model **, unsigned);
+isl_stat parse_parameters (char **, char **, unsigned, parameters ***);
 isl_stat linearize_dates (FILE *, manipulated_polyhedral_model **, unsigned);
 isl_union_set * polyhedral_slice_build (FILE *, isl_union_map *, isl_union_map *, isl_point *);
 // isl_union_set * instant_local_slice_build (FILE *, isl_union_map *, isl_union_map *, isl_point *, unsigned);

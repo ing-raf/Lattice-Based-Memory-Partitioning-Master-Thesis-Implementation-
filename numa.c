@@ -23,7 +23,6 @@
 #define ARCHITECTURE_FILE 	argv[2]
 #define ALLOCATION_FILE 	argv[3]
 
-
 const unsigned config_input = 3;
 const unsigned parallel_phases = 2;
 
@@ -40,7 +39,7 @@ typedef struct {
 	unsigned numLattices;
 } concurrent_part_params;
 
-char ** parse_task_names(int, char**);
+isl_stat parse_task_names(int, char **, char ***, char ***);
 isl_stat concurrent_part(isl_point *, void *);
 
 // Note that when an array lasts in Ptr, its elements are pointers
@@ -66,7 +65,9 @@ int main(int argc, char ** argv) {
 	// Array containint the number of processors allocated to each task
 	unsigned * n = NULL;
 	// Array of task names
-	char ** tasks = NULL;
+	char ** taskNames = NULL;
+	// Array of parameter file names
+	char ** parameterFileNames = NULL;
 	// Handle for the configuration of the isl and pet libraries
 	isl_ctx * optionsHdl = NULL;
 	#ifdef VERBOSE
@@ -129,6 +130,13 @@ int main(int argc, char ** argv) {
 	
 	numTasks = argc - config_input - 1; // -1 to account for the program name
 
+	if (numTasks % 2 != 0) {
+		error(outputStreamHdl, "For each source file must be provided a parameter file");
+		abort_phase(outputStreamHdl, phasePtr);
+	}
+
+	numTasks = numTasks/2;
+
 	outcome = parse_processors_allocation(outputStreamHdl, ALLOCATION_FILE, &numProcessors, numTasks, &taskOnProcessor, &taskOffset, &n);
 
 	if (outcome == isl_stat_error) {
@@ -136,9 +144,9 @@ int main(int argc, char ** argv) {
 		abort_phase(outputStreamHdl, phasePtr);
 	}
 
-	tasks = parse_task_names(numTasks, argv);
+	outcome = parse_task_names(numTasks, argv, &taskNames, &parameterFileNames);
 	
-	if (tasks == NULL) {
+	if (outcome == isl_stat_error) {
 		fprintf(outputStreamHdl, "Memory allocation problem :(");
 		abort_phase(outputStreamHdl, phasePtr);
 	}
@@ -147,7 +155,7 @@ int main(int argc, char ** argv) {
 		fprintf(outputStreamHdl, "Overall number of tasks: %d\n", numTasks);
 		fprintf(outputStreamHdl, "Task names:\n");
 		for (int i = 0; i < numTasks; i++)
-			fprintf(outputStreamHdl, "%d)\t%s\n", i, tasks[i]);
+			fprintf(outputStreamHdl, "%d)\t%s\n", i, taskNames[i]);
 	#endif
 	
 	// 1b) Now we parse the input sources to get the whole polyhedral model
@@ -165,7 +173,7 @@ int main(int argc, char ** argv) {
 		abort_phase(outputStreamHdl, phasePtr);
 	}
 	
-	outcome = parse_input(outputStreamHdl, optionsHdl, tasks, polyhedralModelPtr, numTasks);
+	outcome = parse_input(outputStreamHdl, optionsHdl, taskNames, polyhedralModelPtr, numTasks);
 	
 	if (outcome == isl_stat_error) {
 		error(outputStreamHdl, "Error during parsing input files");
@@ -234,7 +242,7 @@ int main(int argc, char ** argv) {
 	// 6) Building the linearized schedule
 	new_phase(outputStreamHdl, phasePtr);
 	
-	outcome = eliminate_parameters(outputStreamHdl, polyhedralModelPtr, modifiedPolyhedralModelPtr, numTasks);
+	outcome = eliminate_parameters(outputStreamHdl, taskNames, parameterFileNames, polyhedralModelPtr, modifiedPolyhedralModelPtr, numTasks);
 	
 	if (outcome == isl_stat_error) {
 		error(outputStreamHdl, "Error during parameter projection out");
@@ -378,18 +386,37 @@ int main(int argc, char ** argv) {
 	free(taskOnProcessor);
 	free(processorToBankDelay);
 	free(bankLatency);
-	free(tasks);
+	free(parameterFileNames);
+	free(taskNames);
 	finish(outputStreamHdl, phasePtr);
 }
 
-char ** parse_task_names(int n, char ** argv) {
-	
-	char ** names = malloc(n * sizeof(char *));
-	
-	for (int i = 0; i < n; i++)
-		names[i] = argv[i+config_input+1];
-	
-	return names;
+isl_stat parse_task_names(int n, char ** argv, char *** taskNamesPtr, char *** paramFileNamesPtr) {
+	// Array of task names
+	char ** taskNames = NULL;
+	// Array of parameters file names
+	char ** paramFileNames = NULL;
+
+	taskNames = (char **)malloc(n * sizeof(char *));
+
+	if (taskNames == NULL)
+		return isl_stat_error;
+
+	paramFileNames = (char **)malloc(n * sizeof(char *));
+
+	if (paramFileNames == NULL)
+		return isl_stat_error;
+
+	for (int i = 0; i < n; i++) {
+		taskNames[i] = argv[2*i+config_input+1]; 	// +1 to account for the program name
+		paramFileNames[i] = argv[2*i+config_input+2];
+	}
+
+	// Assigning output
+	*taskNamesPtr = taskNames;
+	*paramFileNamesPtr = paramFileNames;
+
+	return isl_stat_ok;
 }
 
 isl_stat concurrent_part(isl_point * pointPtr, void * user) {

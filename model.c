@@ -7,6 +7,54 @@
 #include "model.h"
 #include "config.h"
 
+parameters ** parameters_array_alloc(unsigned numTasks) {
+	// Array to be allocated
+	parameters ** parametersArray = NULL;
+
+	parametersArray = (parameters **)malloc(numTasks * sizeof(parameters *));
+
+	if (parametersArray == NULL)
+		return NULL;
+
+	for (unsigned i = 0; i < numTasks; i++) {
+		parametersArray[i] = NULL;
+	}
+
+	return parametersArray;
+}
+
+isl_stat parameters_array_insert(parameters ** parametersArray, unsigned taskNum, unsigned numParameters, unsigned * values) {
+	parametersArray[taskNum] = (parameters *) malloc(sizeof(parameters));
+
+	if (parametersArray[taskNum] == NULL)
+		return isl_stat_error;
+
+	parametersArray[taskNum] -> numParameters = numParameters;
+	parametersArray[taskNum] -> values = (int *)malloc(numParameters * sizeof(int));
+
+	if (parametersArray[taskNum] -> values == NULL) 
+		return isl_stat_error;
+
+	// This gives this function the character of __isl_take
+	for (unsigned i = 0; i < numParameters; i++)
+		parametersArray[taskNum] -> values[i] = values[i];
+
+	free(values);
+
+	return isl_stat_ok;
+}
+
+void parameters_array_free(parameters ** parametersArray, unsigned numTasks) {
+
+	for (unsigned i = 0; i < numTasks; i++) {
+		free(parametersArray[i] -> values);
+		free(parametersArray[i]);
+	}
+
+	free(parametersArray);
+
+}
+
 manipulated_polyhedral_model ** manipulated_polyhedral_model_array_alloc(unsigned numTasks) {
 	// Array to be allocated
 	manipulated_polyhedral_model ** array = NULL;
