@@ -1,5 +1,4 @@
 *.o
-/uma
-/numa
+/main
 /Outputs/
 /Lattices/

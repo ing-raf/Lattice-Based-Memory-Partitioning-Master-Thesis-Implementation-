@@ -1,4 +1,4 @@
-PROGNAME=numa
+PROGNAME=main
 OBJECTS=parsing.o virtual-address-space.o polyhedral-slice.o parameters.o concurrent.o mlp.o config.o support.o model.o
 LIBS=-lpet -lisl -lbarvinok -lglpk
 SYSLIBS=-lntl -lpolylibgmp -lgmp -lstdc++ -lm

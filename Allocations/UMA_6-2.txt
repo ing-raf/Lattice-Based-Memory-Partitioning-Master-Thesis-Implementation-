@@ -1,0 +1,4 @@
+Number of working processors: 8
+Number of executing tasks: 2
+Processors assigned to each task:
+6 2

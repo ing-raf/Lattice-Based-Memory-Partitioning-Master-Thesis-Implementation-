@@ -77,6 +77,15 @@ manipulated_polyhedral_model ** manipulated_polyhedral_model_array_alloc(unsigne
 			
 			return NULL;
 		}
+
+		array[i] -> parallelIteratorPos = 0;
+		array[i] -> instanceSet = NULL;
+		array[i] -> flattenedSchedule = NULL;
+		array[i] -> allocation = NULL;
+		array[i] -> remappedMayReads = NULL;
+		array[i] -> remappedMayWrites = NULL;
+		array[i] -> remappedMustWrites = NULL;
+		array[i] -> linearizedSchedule = NULL;
 	}
 	
 	return array;

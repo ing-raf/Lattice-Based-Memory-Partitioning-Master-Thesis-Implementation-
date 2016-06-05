@@ -439,7 +439,7 @@ isl_set ** instant_local_dataset_build (FILE * stream, manipulated_polyhedral_mo
 	return datasetPtr;
 }
 
-isl_stat evaluate_fundamental_lattice (FILE * stream, isl_set * concurrentDatasetPtr, isl_set ** translatesPtr, unsigned numTranslates, unsigned long * costPtr) {
+isl_stat evaluate_fundamental_lattice (FILE * stream, isl_set * concurrentDatasetPtr, isl_set ** translatesPtr, unsigned numTranslates, unsigned * costPtr) {
 	// Pointer to the Z - polyhedron to be evaluated
 	isl_set * zPolyhedron = NULL;
 	// Maximum number of memory conflicts count for the current fundamental lattice

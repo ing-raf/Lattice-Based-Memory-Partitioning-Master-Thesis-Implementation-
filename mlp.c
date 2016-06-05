@@ -1,3 +1,11 @@
+/**
+ * @file mlp.c
+ *  
+ * @brief Implementation of functions related to the Mixed Integer Linear Programming model
+ * 
+ * Currently, the solver employed is the GNU Linear Programming Kit (GLPK)
+ */
+
 #ifdef MOREVERBOSE
 	#define VERBOSE
 #endif
@@ -122,14 +130,24 @@ isl_stat inputMILP (unsigned numBanks, dataset_type_array * datasetTypesPtr, uns
 }
 
 /**
- * Naive programming of the MILP problem solving. Builds the GMPL data file for each fundamental lattice, hence reads the GMPL formulation of the model and the data file just written to solve it.
- * @param  stream          Stream for the output messages
- * @param  numBanks        Number of memory banks in the architecture
- * @param  datasetTypesPtr Array containing, for each fundamental lattice, the array of dataset types
- * @param  numLattices     Number of different fundamental lattices
- * @param  bankLatency     Latency of the single memory bank (common for all)
- * @param  bestLattice     [out] Index of the best fundamental lattice
- * @return                 isl_stat_ok if no problem occurs, isl_stat_error otherwise
+ * @brief      Naive programming of the MILP problem solving.
+ *
+ *             Builds the GMPL data file for each fundamental lattice, hence
+ *             reads the GMPL formulation of the model and the data file just
+ *             written to solve it.
+ *
+ * @param      stream           The stream for the output messages
+ * @param      numBanks         The number of memory banks in the architecture
+ * @param      datasetTypesPtr  The array containing, for each fundamental
+ *                              lattice, the array of dataset types
+ * @param      numLattices      The number of different fundamental lattices
+ * @param      bankLatency      The latency of the single memory bank (common
+ *                              for all)
+ * @param[out] bestLattice      The index of the best fundamental lattice
+ * @param      delta            The array of the delays incurred by a specified
+ *                              processor to access a specified memory bank
+ *
+ * @return     isl_stat_ok if no problem occurs, isl_stat_error otherwise
  */
 isl_stat MILPsolve(FILE * stream, unsigned numBanks, dataset_type_array ** datasetTypesPtr, unsigned numLattices, unsigned bankLatency, unsigned * bestLattice, unsigned ** delta) { 
 	// Current best value of the cost function

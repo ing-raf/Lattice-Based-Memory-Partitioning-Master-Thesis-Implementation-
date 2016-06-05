@@ -1,8 +1,9 @@
 Architecture type: GNUMA
 Number of processors: 8
 Number of memory banks: 8
-Bank latency: Fixed
-Bank latency value: 1
+Bank latency: Variable
+Latency of each memory bank:
+1 1 1 1 1 1 1 1
 Latency from each processor to each memory bank:
 1 4 4 4 4 4 4 4
 4 1 4 4 4 4 4 4

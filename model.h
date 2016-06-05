@@ -1,4 +1,4 @@
-/*
+/**
  * Definition of a type employed to represent the manipulated polyhedral model
  */
 #ifndef MODEL_H
@@ -6,6 +6,13 @@
 
 #include <isl/union_set.h>
 #include <isl/union_map.h>
+
+ typedef enum {
+ 	UMA = 0,
+ 	// LOCALREMOTE,
+ 	// CLUSTERS,
+ 	GNUMA,
+ } architecture_type;
 
  typedef struct {
  	unsigned numParameters;

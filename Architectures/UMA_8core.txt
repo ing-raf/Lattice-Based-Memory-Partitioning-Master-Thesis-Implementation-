@@ -1,0 +1,3 @@
+Architecture type: UMA
+Number of processors: 8
+Number of memory banks: 8
